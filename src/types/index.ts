@@ -31,6 +31,7 @@ export interface PlanSettings {
   primaryCurrency: string;
   secondaryCurrency: string;
   showSecondaryCurrency: boolean;
+  showMrrTab?: boolean;
   // MRR/ARR Calculator settings
   mrrSettings?: {
     startingMRR: number;

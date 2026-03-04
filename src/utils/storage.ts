@@ -62,6 +62,7 @@ export const createDefaultPlan = (): Plan => ({
     primaryCurrency: 'USD',
     secondaryCurrency: 'EUR',
     showSecondaryCurrency: false,
+    showMrrTab: false,
     burnRateSettings: createDefaultBurnRateSettings(),
   },
 });
@@ -84,6 +85,7 @@ export const loadState = (): AppState => {
               primaryCurrency: 'USD', // Default migration to USD
               secondaryCurrency: 'EUR',
               showSecondaryCurrency: false,
+              showMrrTab: false,
               burnRateSettings: createDefaultBurnRateSettings(),
             },
           };
@@ -93,6 +95,7 @@ export const loadState = (): AppState => {
           ...plan,
           settings: {
             ...plan.settings,
+            showMrrTab: typeof oldSettings.showMrrTab === 'boolean' ? oldSettings.showMrrTab : false,
             burnRateSettings: normalizeBurnRateSettings(oldSettings?.burnRateSettings),
           },
         };

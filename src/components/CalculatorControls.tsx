@@ -1,14 +1,12 @@
 import type { PlanSettings } from '../types';
 import { useExchangeRates, CURRENCIES, getCurrencySymbol } from '../hooks/useExchangeRates';
-import { Settings2, DollarSign, Clock, Percent, Shield, Globe, Download, Upload, ArrowLeftRight } from 'lucide-react';
+import { Settings2, DollarSign, Clock, Percent, Shield, Globe, ArrowLeftRight } from 'lucide-react';
 
 interface CalculatorControlsProps {
   settings: PlanSettings;
   onUpdateSettings: (settings: PlanSettings) => void;
   availableFunds: number;
   onUpdateAvailableFunds: (value: number) => void;
-  onExportPlan?: () => void;
-  onImportPlan?: () => void;
 }
 
 export function CalculatorControls({
@@ -16,8 +14,6 @@ export function CalculatorControls({
   onUpdateSettings,
   availableFunds,
   onUpdateAvailableFunds,
-  onExportPlan,
-  onImportPlan,
 }: CalculatorControlsProps) {
   const { rates, loading, error, convert } = useExchangeRates(settings.primaryCurrency);
 
@@ -25,34 +21,9 @@ export function CalculatorControls({
   const secondarySymbol = getCurrencySymbol(settings.secondaryCurrency);
   return (
     <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Settings2 className="w-5 h-5 text-blue-600" />
-          <h2 className="text-lg font-semibold text-gray-900">Calculator Settings</h2>
-        </div>
-        <div className="flex gap-2">
-          {onExportPlan && (
-            <button
-              onClick={onExportPlan}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-              title="Export plan"
-            >
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline">Export</span>
-            </button>
-          )}
-          {onImportPlan && (
-            <label className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors cursor-pointer">
-              <Upload className="w-4 h-4" />
-              <span className="hidden sm:inline">Import</span>
-              <input type="file" accept=".json" className="hidden" onChange={(e) => {
-                if (e.target.files?.[0] && onImportPlan) {
-                  onImportPlan();
-                }
-              }} />
-            </label>
-          )}
-        </div>
+      <div className="flex items-center gap-2 mb-4">
+        <Settings2 className="w-5 h-5 text-blue-600" />
+        <h2 className="text-lg font-semibold text-gray-900">Calculator Settings</h2>
       </div>
 
       <div className="space-y-4">

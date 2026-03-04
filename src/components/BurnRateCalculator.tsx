@@ -62,7 +62,7 @@ export function BurnRateCalculator({
   const isProfitable = netBurn <= 0;
 
   useEffect(() => {
-    if (availableFunds > 0 && burnSettings.startingCash === 0) {
+    if (Number.isFinite(availableFunds) && availableFunds !== burnSettings.startingCash) {
       onUpdateBurnSettings((prev) => ({ ...prev, startingCash: availableFunds }));
     }
   }, [availableFunds, burnSettings.startingCash, onUpdateBurnSettings]);
