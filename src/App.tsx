@@ -117,6 +117,9 @@ function App() {
             };
           }),
         };
+
+        const convertedFunds = Math.round(convert(availableFunds, oldPrimaryCurrency, newPrimaryCurrency) * 100) / 100;
+        setAvailableFunds(convertedFunds);
       }
 
       mergedSettings.burnRateSettings = normalizedBurnSettings;
@@ -141,7 +144,7 @@ function App() {
         plans: updatedPlans,
       };
     });
-  }, [convert, rates]);
+  }, [availableFunds, convert, rates]);
 
   const addExpense = useCallback((expenseData: Omit<Expense, 'id' | 'currency'>) => {
     const newExpense: Expense = {
