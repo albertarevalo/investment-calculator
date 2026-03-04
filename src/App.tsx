@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
-import type { AppState, Expense, Plan } from './types';
-import { loadState, saveState, createDefaultPlan, generateId } from './utils/storage';
+import type { AppState, Expense, Plan, BurnRateSettings } from './types';
+import { loadState, saveState, createDefaultPlan, generateId, createDefaultBurnRateSettings, normalizeBurnRateSettings } from './utils/storage';
 import { calculateResults } from './utils/calculator';
 import { ExpenseList } from './components/ExpenseList';
 import { ExpenseForm } from './components/ExpenseForm';
@@ -14,6 +14,10 @@ import { MRRCalculator } from './components/MRRCalculator';
 import { BurnRateCalculator } from './components/BurnRateCalculator';
 import { useToast, ToastContainer, toast } from './hooks/useToast.tsx';
 import { useExchangeRates } from './hooks/useExchangeRates.ts';
+
+type PlanUpdates = Partial<Omit<Plan, 'settings'>> & {
+  settings?: Partial<Plan['settings']>;
+};
 
 function App() {
   const [state, setState] = useState<AppState>(loadState);
@@ -36,19 +40,27 @@ function App() {
     return calculateResults(activePlan.expenses, activePlan.settings, availableFunds);
   }, [activePlan, availableFunds]);
 
-  const updatePlan = useCallback((updates: Partial<Plan>) => {
+  const updatePlan = useCallback((updates: PlanUpdates) => {
     setState((prev) => {
       const currentPlan = prev.plans.find((p) => p.id === prev.activePlanId);
       if (!currentPlan) return prev;
 
-      const newSettings = updates.settings || currentPlan.settings;
-      const oldPrimaryCurrency = currentPlan.settings.primaryCurrency;
-      const newPrimaryCurrency = newSettings.primaryCurrency;
+      const mergedSettings: Plan['settings'] = {
+        ...currentPlan.settings,
+        ...(updates.settings || {}),
+      };
 
-      // If primary currency changed, convert all expenses
+      const oldPrimaryCurrency = currentPlan.settings.primaryCurrency;
+      const newPrimaryCurrency = mergedSettings.primaryCurrency;
+      const primaryCurrencyChanged = oldPrimaryCurrency !== newPrimaryCurrency && !!rates;
+
+      // Ensure burn rate settings are normalized before any currency adjustments
+      let normalizedBurnSettings = normalizeBurnRateSettings(mergedSettings.burnRateSettings);
+
+      // If primary currency changed, convert expenses and revenue streams
       let newExpenses = updates.expenses || currentPlan.expenses;
-      if (oldPrimaryCurrency !== newPrimaryCurrency && rates) {
-        newExpenses = newExpenses.map(expense => {
+      if (primaryCurrencyChanged) {
+        newExpenses = newExpenses.map((expense) => {
           const expenseCurrency = expense.currency || oldPrimaryCurrency;
           if (expenseCurrency === newPrimaryCurrency) {
             return { ...expense, currency: newPrimaryCurrency };
@@ -57,19 +69,47 @@ function App() {
           return {
             ...expense,
             amount: Math.round(convertedAmount * 100) / 100,
-            currency: newPrimaryCurrency
+            currency: newPrimaryCurrency,
           };
         });
-        toast.success(`Converted expenses to ${newPrimaryCurrency}`);
+
+        normalizedBurnSettings = {
+          ...normalizedBurnSettings,
+          revenueStreams: normalizedBurnSettings.revenueStreams.map((stream) => {
+            const streamCurrency = stream.currency || oldPrimaryCurrency;
+            if (streamCurrency === newPrimaryCurrency) {
+              return { ...stream, currency: newPrimaryCurrency };
+            }
+            const convertedAmount = convert(stream.amount, streamCurrency, newPrimaryCurrency);
+            return {
+              ...stream,
+              amount: Math.round(convertedAmount * 100) / 100,
+              currency: newPrimaryCurrency,
+            };
+          }),
+        };
+      }
+
+      mergedSettings.burnRateSettings = normalizedBurnSettings;
+
+      const updatedPlans = prev.plans.map((p) =>
+        p.id === prev.activePlanId
+          ? {
+              ...p,
+              ...updates,
+              settings: mergedSettings,
+              expenses: newExpenses,
+            }
+          : p
+      );
+
+      if (primaryCurrencyChanged) {
+        toast.success(`Converted plan data to ${newPrimaryCurrency}`);
       }
 
       return {
         ...prev,
-        plans: prev.plans.map((p) =>
-          p.id === prev.activePlanId
-            ? { ...p, ...updates, settings: { ...p.settings, ...newSettings }, expenses: newExpenses }
-            : p
-        ),
+        plans: updatedPlans,
       };
     });
   }, [convert, rates]);
@@ -176,6 +216,17 @@ function App() {
       toast.error('Failed to export plan. Please try again.');
     }
   }, []);
+
+  const handleBurnRateSettingsUpdate = useCallback((updater: (prev: BurnRateSettings) => BurnRateSettings) => {
+    if (!activePlan) return;
+    const currentSettings = activePlan.settings.burnRateSettings || createDefaultBurnRateSettings();
+    const updatedSettings = updater(currentSettings);
+    updatePlan({
+      settings: {
+        burnRateSettings: updatedSettings,
+      },
+    });
+  }, [activePlan, updatePlan]);
 
   if (!activePlan || !results) {
     return <div className="p-8">Loading...</div>;
@@ -294,12 +345,9 @@ function App() {
                             arpu: Number((settings.mrrSettings as { arpu?: number }).arpu) || 0,
                             projectionMonths: Number((settings.mrrSettings as { projectionMonths?: number }).projectionMonths) || 12,
                           } : undefined,
-                          burnRateSettings: settings.burnRateSettings && typeof settings.burnRateSettings === 'object' ? {
-                            startingCash: Number((settings.burnRateSettings as { startingCash?: number }).startingCash) || 0,
-                            monthlyRevenue: Number((settings.burnRateSettings as { monthlyRevenue?: number }).monthlyRevenue) || 0,
-                            monthlyExpenses: Number((settings.burnRateSettings as { monthlyExpenses?: number }).monthlyExpenses) || 0,
-                            projectionMonths: Number((settings.burnRateSettings as { projectionMonths?: number }).projectionMonths) || 12,
-                          } : undefined,
+                          burnRateSettings: settings.burnRateSettings && typeof settings.burnRateSettings === 'object'
+                            ? normalizeBurnRateSettings(settings.burnRateSettings)
+                            : createDefaultBurnRateSettings(),
                         },
                       };
                       setState((prev) => ({
@@ -488,12 +536,9 @@ function App() {
                                 arpu: Number((settings.mrrSettings as { arpu?: number }).arpu) || 0,
                                 projectionMonths: Number((settings.mrrSettings as { projectionMonths?: number }).projectionMonths) || 12,
                               } : undefined,
-                              burnRateSettings: settings.burnRateSettings && typeof settings.burnRateSettings === 'object' ? {
-                                startingCash: Number((settings.burnRateSettings as { startingCash?: number }).startingCash) || 0,
-                                monthlyRevenue: Number((settings.burnRateSettings as { monthlyRevenue?: number }).monthlyRevenue) || 0,
-                                monthlyExpenses: Number((settings.burnRateSettings as { monthlyExpenses?: number }).monthlyExpenses) || 0,
-                                projectionMonths: Number((settings.burnRateSettings as { projectionMonths?: number }).projectionMonths) || 12,
-                              } : undefined,
+                              burnRateSettings: settings.burnRateSettings && typeof settings.burnRateSettings === 'object'
+                                ? normalizeBurnRateSettings(settings.burnRateSettings)
+                                : createDefaultBurnRateSettings(),
                             },
                           };
                           setState((prev) => ({
@@ -539,6 +584,8 @@ function App() {
                 settings={activePlan.settings}
                 expenses={activePlan.expenses}
                 availableFunds={availableFunds}
+                burnRateSettings={activePlan.settings.burnRateSettings || createDefaultBurnRateSettings()}
+                onUpdateBurnSettings={handleBurnRateSettingsUpdate}
               />
             </div>
           </div>

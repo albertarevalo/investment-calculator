@@ -1,9 +1,53 @@
-import type { AppState, Plan } from '../types';
+import type { AppState, Plan, BurnRateSettings, RevenueStream } from '../types';
 
 const STORAGE_KEY = 'investment-calculator-data';
 
 export const generateId = (): string => {
   return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+};
+
+export const createDefaultBurnRateSettings = (): BurnRateSettings => ({
+  startingCash: 0,
+  projectionMonths: 12,
+  revenueStreams: [],
+});
+
+export const normalizeBurnRateSettings = (raw: any): BurnRateSettings => {
+  if (!raw || typeof raw !== 'object') {
+    return createDefaultBurnRateSettings();
+  }
+
+  const revenueStreams: RevenueStream[] = Array.isArray(raw.revenueStreams)
+    ? raw.revenueStreams.map((stream: any) => ({
+        id: typeof stream.id === 'string' ? stream.id : generateId(),
+        name:
+          typeof stream.name === 'string' && stream.name.trim().length > 0
+            ? stream.name.trim()
+            : 'Revenue Stream',
+        amount: typeof stream.amount === 'number' ? stream.amount : 0,
+        frequency: stream.frequency === 'yearly' ? 'yearly' : 'monthly',
+        currency: typeof stream.currency === 'string' ? stream.currency : undefined,
+      }))
+    : [];
+
+  if (revenueStreams.length === 0 && typeof raw.monthlyRevenue === 'number' && raw.monthlyRevenue > 0) {
+    revenueStreams.push({
+      id: generateId(),
+      name:
+        typeof raw.revenueName === 'string' && raw.revenueName.trim().length > 0
+          ? raw.revenueName.trim()
+          : 'Recurring Revenue',
+      amount: raw.monthlyRevenue,
+      frequency: raw.revenueFrequency === 'yearly' ? 'yearly' : 'monthly',
+      currency: typeof raw.currency === 'string' ? raw.currency : undefined,
+    });
+  }
+
+  return {
+    startingCash: typeof raw.startingCash === 'number' ? raw.startingCash : 0,
+    projectionMonths: typeof raw.projectionMonths === 'number' ? raw.projectionMonths : 12,
+    revenueStreams,
+  };
 };
 
 export const createDefaultPlan = (): Plan => ({
@@ -18,6 +62,7 @@ export const createDefaultPlan = (): Plan => ({
     primaryCurrency: 'USD',
     secondaryCurrency: 'EUR',
     showSecondaryCurrency: false,
+    burnRateSettings: createDefaultBurnRateSettings(),
   },
 });
 
@@ -39,10 +84,18 @@ export const loadState = (): AppState => {
               primaryCurrency: 'USD', // Default migration to USD
               secondaryCurrency: 'EUR',
               showSecondaryCurrency: false,
+              burnRateSettings: createDefaultBurnRateSettings(),
             },
           };
         }
-        return plan;
+
+        return {
+          ...plan,
+          settings: {
+            ...plan.settings,
+            burnRateSettings: normalizeBurnRateSettings(oldSettings?.burnRateSettings),
+          },
+        };
       });
       return {
         plans,

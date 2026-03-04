@@ -10,6 +10,20 @@ export interface Expense {
   currency?: string; // Currency this expense was created in
 }
 
+export interface RevenueStream {
+  id: string;
+  name: string;
+  amount: number;
+  frequency: RecurringFrequency;
+  currency?: string;
+}
+
+export interface BurnRateSettings {
+  startingCash: number;
+  projectionMonths: number;
+  revenueStreams: RevenueStream[];
+}
+
 export interface PlanSettings {
   targetRunwayMonths: number;
   bufferMonths: number;
@@ -27,12 +41,7 @@ export interface PlanSettings {
     projectionMonths: number;
   };
   // Burn Rate Calculator settings
-  burnRateSettings?: {
-    startingCash: number;
-    monthlyRevenue: number;
-    monthlyExpenses: number;
-    projectionMonths: number;
-  };
+  burnRateSettings?: BurnRateSettings;
 }
 
 export interface Plan {

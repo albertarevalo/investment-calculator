@@ -1,12 +1,16 @@
-import type { PlanSettings, Expense } from '../types';
+import type { PlanSettings, Expense, BurnRateSettings, RevenueStream } from '../types';
 import { useState, useMemo, useEffect } from 'react';
-import { Flame, DollarSign, Calendar, AlertTriangle, TrendingDown, Clock } from 'lucide-react';
+import { Flame, DollarSign, Calendar, AlertTriangle, TrendingDown, Clock, Plus, Trash2 } from 'lucide-react';
 import { getCurrencySymbol } from '../hooks/useExchangeRates';
+import { sanitizeMoneyInput, parseMoneyInput } from '../utils/money';
+import { generateId } from '../utils/storage';
 
 interface BurnRateCalculatorProps {
   settings: PlanSettings;
   expenses: Expense[];
   availableFunds: number;
+  burnRateSettings: BurnRateSettings;
+  onUpdateBurnSettings: (updater: (prev: BurnRateSettings) => BurnRateSettings) => void;
 }
 
 interface MonthData {
@@ -19,11 +23,18 @@ interface MonthData {
   status: 'healthy' | 'warning' | 'critical';
 }
 
-export function BurnRateCalculator({ settings, expenses, availableFunds }: BurnRateCalculatorProps) {
-  const [startingCash, setStartingCash] = useState<number>(0);
-  const [monthlyRevenue, setMonthlyRevenue] = useState<number>(0);
-  const [monthlyExpenses, setMonthlyExpenses] = useState<number>(0);
-  const [projectionMonths, setProjectionMonths] = useState<number>(12);
+export function BurnRateCalculator({
+  settings,
+  expenses,
+  availableFunds,
+  burnRateSettings,
+  onUpdateBurnSettings,
+}: BurnRateCalculatorProps) {
+  const symbol = getCurrencySymbol(settings?.primaryCurrency || 'USD');
+  const burnSettings = burnRateSettings;
+  const [newStreamName, setNewStreamName] = useState('');
+  const [newStreamAmount, setNewStreamAmount] = useState('');
+  const [newStreamFrequency, setNewStreamFrequency] = useState<'monthly' | 'yearly'>('monthly');
 
   // Calculate monthly expenses from existing expense data
   const calculatedMonthlyExpenses = useMemo(() => {
@@ -40,35 +51,88 @@ export function BurnRateCalculator({ settings, expenses, availableFunds }: BurnR
     return monthlyTotal;
   }, [expenses]);
 
-  // Auto-update starting cash when available funds changes
-  useEffect(() => {
-    if (availableFunds > 0) {
-      setStartingCash(availableFunds);
-    }
-  }, [availableFunds]);
+  const totalMonthlyRevenue = useMemo(() => {
+    return burnSettings.revenueStreams.reduce((sum, stream) => {
+      const monthlyAmount = stream.frequency === 'yearly' ? stream.amount / 12 : stream.amount;
+      return sum + monthlyAmount;
+    }, 0);
+  }, [burnSettings.revenueStreams]);
 
-  // Auto-update monthly expenses when expenses change (only if user hasn't manually entered)
-  useEffect(() => {
-    if (calculatedMonthlyExpenses > 0 && monthlyExpenses === 0) {
-      setMonthlyExpenses(calculatedMonthlyExpenses);
-    }
-  }, [calculatedMonthlyExpenses]);
-
-  const symbol = getCurrencySymbol(settings?.primaryCurrency || 'USD');
-
-  const netBurn = monthlyExpenses - monthlyRevenue;
+  const netBurn = calculatedMonthlyExpenses - totalMonthlyRevenue;
   const isProfitable = netBurn <= 0;
+
+  useEffect(() => {
+    if (availableFunds > 0 && burnSettings.startingCash === 0) {
+      onUpdateBurnSettings((prev) => ({ ...prev, startingCash: availableFunds }));
+    }
+  }, [availableFunds, burnSettings.startingCash, onUpdateBurnSettings]);
+
+  const handleStartingCashChange = (value: string) => {
+    const parsed = parseMoneyInput(value);
+    onUpdateBurnSettings((prev) => ({ ...prev, startingCash: parsed }));
+  };
+
+  const handleProjectionChange = (value: number) => {
+    const clamped = Math.min(60, Math.max(1, value));
+    onUpdateBurnSettings((prev) => ({ ...prev, projectionMonths: clamped }));
+  };
+
+  const handleAddStream = (e: React.FormEvent) => {
+    e.preventDefault();
+    const amountValue = parseMoneyInput(newStreamAmount);
+    if (!newStreamName.trim() || amountValue <= 0) return;
+
+    onUpdateBurnSettings((prev) => ({
+      ...prev,
+      revenueStreams: [
+        ...prev.revenueStreams,
+        {
+          id: generateId(),
+          name: newStreamName.trim(),
+          amount: amountValue,
+          frequency: newStreamFrequency,
+          currency: settings.primaryCurrency,
+        },
+      ],
+    }));
+
+    setNewStreamName('');
+    setNewStreamAmount('');
+    setNewStreamFrequency('monthly');
+  };
+
+  const handleStreamChange = (id: string, updates: Partial<RevenueStream>) => {
+    onUpdateBurnSettings((prev) => ({
+      ...prev,
+      revenueStreams: prev.revenueStreams.map((stream) =>
+        stream.id === id ? { ...stream, ...updates } : stream
+      ),
+    }));
+  };
+
+  const handleDeleteStream = (id: string) => {
+    onUpdateBurnSettings((prev) => ({
+      ...prev,
+      revenueStreams: prev.revenueStreams.filter((stream) => stream.id !== id),
+    }));
+  };
+
+  const formatInputValue = (value: number) => {
+    if (!value) return '0';
+    return value.toLocaleString('en-US');
+  };
 
   // Calculate projections
   const projections = useMemo((): MonthData[] => {
     const data: MonthData[] = [];
-    let currentCash = startingCash;
+    let currentCash = burnSettings.startingCash;
+    const months = Math.max(1, burnSettings.projectionMonths);
 
-    for (let month = 0; month <= projectionMonths; month++) {
+    for (let month = 0; month <= months; month++) {
       const date = new Date();
       date.setMonth(date.getMonth() + month);
 
-      const runwayMonths = isProfitable ? Infinity : currentCash / netBurn;
+      const runwayMonths = isProfitable || netBurn === 0 ? Infinity : currentCash / netBurn;
       let status: 'healthy' | 'warning' | 'critical';
       
       if (isProfitable || runwayMonths > 12) {
@@ -98,25 +162,29 @@ export function BurnRateCalculator({ settings, expenses, availableFunds }: BurnR
     }
 
     return data;
-  }, [startingCash, monthlyRevenue, monthlyExpenses, netBurn, isProfitable, projectionMonths]);
+  }, [burnSettings.startingCash, burnSettings.projectionMonths, netBurn, isProfitable]);
 
   const formatCurrency = (value: number) => {
     if (value === Infinity) return '∞';
-    if (value >= 1000000) {
-      return `${symbol}${(value / 1000000).toFixed(1)}M`;
-    } else if (value >= 1000) {
-      return `${symbol}${(value / 1000).toFixed(1)}K`;
-    }
-    return `${symbol}${value.toFixed(0)}`;
+    const absValue = Math.abs(value);
+    const formatted = absValue >= 1000000
+      ? `${(absValue / 1000000).toFixed(1)}M`
+      : absValue >= 1000
+        ? `${(absValue / 1000).toFixed(1)}K`
+        : absValue.toFixed(0);
+    const sign = value < 0 ? '-' : '';
+    return `${sign}${symbol}${formatted}`;
   };
 
-  const currentRunway = isProfitable ? Infinity : startingCash / netBurn;
+  const currentRunway = isProfitable || netBurn === 0 ? Infinity : burnSettings.startingCash / netBurn;
   const cashOutDate = useMemo(() => {
     if (isProfitable) return null;
     const date = new Date();
     date.setMonth(date.getMonth() + Math.floor(currentRunway));
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   }, [isProfitable, currentRunway]);
+
+  const burnMultiple = totalMonthlyRevenue <= 0 ? null : calculatedMonthlyExpenses / totalMonthlyRevenue;
 
   return (
     <div className="space-y-6">
@@ -136,25 +204,9 @@ export function BurnRateCalculator({ settings, expenses, availableFunds }: BurnR
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{symbol}</span>
               <input
-                type="number"
-                value={startingCash || ''}
-                onChange={(e) => setStartingCash(parseFloat(e.target.value) || 0)}
-                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <TrendingDown className="w-4 h-4 inline mr-1" />
-              Monthly Revenue
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{symbol}</span>
-              <input
-                type="number"
-                value={monthlyRevenue || ''}
-                onChange={(e) => setMonthlyRevenue(parseFloat(e.target.value) || 0)}
+                type="text"
+                value={formatInputValue(burnSettings.startingCash)}
+                onChange={(e) => handleStartingCashChange(e.target.value)}
                 className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -165,14 +217,13 @@ export function BurnRateCalculator({ settings, expenses, availableFunds }: BurnR
               <Flame className="w-4 h-4 inline mr-1" />
               Monthly Expenses
             </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{symbol}</span>
-              <input
-                type="number"
-                value={monthlyExpenses || ''}
-                onChange={(e) => setMonthlyExpenses(parseFloat(e.target.value) || 0)}
-                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+            <div className="p-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-700">
+              {symbol}
+              {calculatedMonthlyExpenses.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+              <p className="text-xs text-gray-500 mt-1">Auto-synced from Runway expenses</p>
             </div>
           </div>
 
@@ -181,15 +232,119 @@ export function BurnRateCalculator({ settings, expenses, availableFunds }: BurnR
               <Calendar className="w-4 h-4 inline mr-1" />
               Projection Months
             </label>
-            <input
-              type="number"
-              value={projectionMonths || ''}
-              onChange={(e) => setProjectionMonths(parseInt(e.target.value) || 12)}
-              min={1}
-              max={60}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <div className="relative">
+              <input
+                type="number"
+                value={burnSettings.projectionMonths}
+                onChange={(e) => handleProjectionChange(parseInt(e.target.value) || 1)}
+                min={1}
+                max={60}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           </div>
+        </div>
+
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 className="text-base font-semibold text-gray-800 flex items-center gap-2">
+                <TrendingDown className="w-4 h-4 text-blue-600" />
+                Revenue Streams
+              </h3>
+              <p className="text-sm text-gray-500">Add projected recurring revenue sources</p>
+            </div>
+            <div className="text-sm text-gray-700 font-medium">
+              Total Monthly Revenue: {symbol}
+              {totalMonthlyRevenue.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </div>
+          </div>
+
+          <form onSubmit={handleAddStream} className="grid grid-cols-1 md:grid-cols-[2fr,1fr,auto,auto] gap-3 p-4 border border-gray-200 rounded-xl bg-gray-50">
+            <input
+              type="text"
+              value={newStreamName}
+              onChange={(e) => setNewStreamName(e.target.value)}
+              placeholder="e.g., Ads Revenue"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{symbol}</span>
+              <input
+                type="text"
+                value={newStreamAmount}
+                onChange={(e) => setNewStreamAmount(sanitizeMoneyInput(e.target.value))}
+                placeholder="Amount"
+                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            <select
+              value={newStreamFrequency}
+              onChange={(e) => setNewStreamFrequency(e.target.value as 'monthly' | 'yearly')}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+            <button
+              type="submit"
+              className="inline-flex items-center gap-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              <Plus className="w-4 h-4" />
+              Add
+            </button>
+          </form>
+
+          {burnSettings.revenueStreams.length > 0 ? (
+            <div className="mt-4 space-y-3">
+              {burnSettings.revenueStreams.map((stream) => (
+                <div key={stream.id} className="flex flex-col md:flex-row md:items-center gap-3 p-4 border border-gray-200 rounded-xl">
+                  <div className="flex-1">
+                    <input
+                      type="text"
+                      value={stream.name}
+                      onChange={(e) => handleStreamChange(stream.id, { name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="flex-1 relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{symbol}</span>
+                    <input
+                      type="text"
+                      value={formatInputValue(stream.amount)}
+                      onChange={(e) => {
+                        const parsed = parseMoneyInput(e.target.value);
+                        handleStreamChange(stream.id, { amount: parsed });
+                      }}
+                      className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <select
+                    value={stream.frequency}
+                    onChange={(e) => handleStreamChange(stream.id, { frequency: e.target.value as 'monthly' | 'yearly' })}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteStream(stream.id)}
+                    className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-gray-500">No revenue streams yet. Add your first projection above.</p>
+          )}
         </div>
 
         {/* Summary Cards */}
@@ -197,10 +352,12 @@ export function BurnRateCalculator({ settings, expenses, availableFunds }: BurnR
           <div className="bg-blue-50 p-4 rounded-lg">
             <p className="text-sm text-gray-600">Net Monthly Burn</p>
             <p className="text-xl font-bold text-gray-900">
-              {isProfitable ? `+${formatCurrency(Math.abs(netBurn))}` : formatCurrency(netBurn)}
+              {formatCurrency(netBurn)}
             </p>
             <p className="text-xs text-gray-500">
-              {isProfitable ? '(Profitable!)' : `${formatCurrency(monthlyRevenue)} - ${formatCurrency(monthlyExpenses)}`}
+              {isProfitable
+                ? 'Profitable! Revenue exceeds expenses'
+                : `${formatCurrency(totalMonthlyRevenue)} revenue vs ${formatCurrency(calculatedMonthlyExpenses)} expenses`}
             </p>
           </div>
           <div className="bg-purple-50 p-4 rounded-lg">
@@ -215,7 +372,7 @@ export function BurnRateCalculator({ settings, expenses, availableFunds }: BurnR
           <div className="bg-orange-50 p-4 rounded-lg">
             <p className="text-sm text-gray-600">Burn Multiple</p>
             <p className="text-xl font-bold text-gray-900">
-              {isProfitable ? 'N/A' : `${(monthlyExpenses / monthlyRevenue).toFixed(2)}x`}
+              {burnMultiple && !isProfitable ? `${burnMultiple.toFixed(2)}x` : 'N/A'}
             </p>
             <p className="text-xs text-gray-500">
               Expenses / Revenue
@@ -265,8 +422,8 @@ export function BurnRateCalculator({ settings, expenses, availableFunds }: BurnR
                 >
                   <td className="py-2 px-3 text-gray-900">{data.month === 0 ? 'Now' : data.date}</td>
                   <td className="text-right py-2 px-3 text-gray-700">{formatCurrency(data.startingCash)}</td>
-                  <td className="text-right py-2 px-3 text-green-600">+{formatCurrency(monthlyRevenue)}</td>
-                  <td className="text-right py-2 px-3 text-red-500">-{formatCurrency(monthlyExpenses)}</td>
+                  <td className="text-right py-2 px-3 text-green-600">{formatCurrency(totalMonthlyRevenue)}</td>
+                  <td className="text-right py-2 px-3 text-red-500">{formatCurrency(calculatedMonthlyExpenses)}</td>
                   <td className="text-right py-2 px-3 font-medium text-gray-900">
                     {data.month === 0 ? '-' : formatCurrency(data.monthlyBurn)}
                   </td>
