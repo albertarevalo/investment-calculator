@@ -213,181 +213,159 @@ function App() {
           </div>
         </div>
 
-        <SummaryCards results={results} settings={activePlan.settings} />
-
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="space-y-6">
-            <CalculatorControls
-              settings={activePlan.settings}
-              onUpdateSettings={(newSettings: import('./types').PlanSettings) => updatePlan({ settings: newSettings })}
-              availableFunds={availableFunds}
-              onUpdateAvailableFunds={setAvailableFunds}
-              onExportPlan={() => {
-                try {
-                  if (!activePlan) {
-                    toast.error('No active plan to export');
-                    return;
-                  }
-                  const dataStr = JSON.stringify(activePlan, null, 2);
-                  const dataBlob = new Blob([dataStr], { type: 'application/json' });
-                  const url = URL.createObjectURL(dataBlob);
-                  const link = document.createElement('a');
-                  link.href = url;
-                  link.download = `${activePlan.name.replace(/\s+/g, '_').toLowerCase()}_plan.json`;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  URL.revokeObjectURL(url);
-                  toast.success(`Plan "${activePlan.name}" exported successfully!`);
-                } catch {
-                  toast.error('Failed to export plan. Please try again.');
-                }
-              }}
-              onImportPlan={() => {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = '.json,application/json';
-                input.onchange = (e) => {
-                  const file = (e.target as HTMLInputElement).files?.[0];
-                  if (!file) return;
-                  
-                  // Validate file size (max 5MB)
-                  if (file.size > 5 * 1024 * 1024) {
-                    toast.error('File too large. Maximum size is 5MB.');
-                    return;
-                  }
-                  
-                  // Validate file extension
-                  if (!file.name.toLowerCase().endsWith('.json')) {
-                    toast.error('Invalid file type. Please select a JSON file.');
-                    return;
-                  }
-                  
-                  const reader = new FileReader();
-                  
-                  reader.onerror = () => {
-                    toast.error('Failed to read file. Please try again.');
-                  };
-                  
-                  reader.onload = (event) => {
-                    try {
-                      const content = event.target?.result as string;
-                      if (!content || content.trim() === '') {
-                        toast.error('File is empty.');
-                        return;
-                      }
-                      
-                      let importedPlan: unknown;
-                      try {
-                        importedPlan = JSON.parse(content);
-                      } catch {
-                        toast.error('Invalid JSON format. Please check the file.');
-                        return;
-                      }
-                      
-                      // Validate plan structure
-                      if (!importedPlan || typeof importedPlan !== 'object') {
-                        toast.error('Invalid plan file format.');
-                        return;
-                      }
-                      
-                      const plan = importedPlan as Record<string, unknown>;
-                      
-                      // Check required fields
-                      if (!plan.name || typeof plan.name !== 'string' || plan.name.trim() === '') {
-                        toast.error('Invalid plan: missing or empty name.');
-                        return;
-                      }
-                      
-                      if (!plan.expenses || !Array.isArray(plan.expenses)) {
-                        toast.error('Invalid plan: expenses must be an array.');
-                        return;
-                      }
-                      
-                      if (!plan.settings || typeof plan.settings !== 'object') {
-                        toast.error('Invalid plan: missing settings.');
-                        return;
-                      }
-                      
-                      const settings = plan.settings as Record<string, unknown>;
-                      const requiredSettings = ['targetRunwayMonths', 'bufferMonths', 'bufferPercentage', 'primaryCurrency'];
-                      for (const key of requiredSettings) {
-                        if (!(key in settings)) {
-                          toast.error(`Invalid plan: missing required setting "${key}".`);
-                          return;
-                        }
-                      }
-                      
-                      // Check for duplicate name
-                      const existingPlan = state.plans.find(p => 
-                        p.name.toLowerCase() === plan.name!.toString().toLowerCase()
-                      );
-                      
-                      let finalName = plan.name as string;
-                      if (existingPlan) {
-                        const timestamp = new Date().toLocaleDateString();
-                        finalName = `${plan.name} (Imported ${timestamp})`;
-                        toast.warning(`Plan renamed to "${finalName}" to avoid duplicates.`);
-                      }
-                      
-                      // Create validated plan
-                      const validatedPlan: Plan = {
-                        id: generateId(),
-                        name: finalName.trim(),
-                        createdAt: new Date().toISOString(),
-                        expenses: (plan.expenses as Array<Record<string, unknown>>).map(e => ({
-                          id: typeof e.id === 'string' ? e.id : generateId(),
-                          name: typeof e.name === 'string' ? e.name : 'Unnamed Expense',
-                          amount: typeof e.amount === 'number' ? e.amount : 0,
-                          type: e.type === 'recurring' ? 'recurring' : 'one-time',
-                          frequency: e.frequency === 'yearly' ? 'yearly' : 'monthly',
-                        })),
-                        settings: {
-                          targetRunwayMonths: Number(settings.targetRunwayMonths) || 12,
-                          bufferMonths: Number(settings.bufferMonths) || 3,
-                          bufferPercentage: Number(settings.bufferPercentage) || 20,
-                          primaryCurrency: String(settings.primaryCurrency || 'USD'),
-                          secondaryCurrency: String(settings.secondaryCurrency || 'EUR'),
-                          showSecondaryCurrency: Boolean(settings.showSecondaryCurrency),
-                          mrrSettings: settings.mrrSettings && typeof settings.mrrSettings === 'object' ? {
-                            startingMRR: Number((settings.mrrSettings as { startingMRR?: number }).startingMRR) || 0,
-                            startingCustomers: Number((settings.mrrSettings as { startingCustomers?: number }).startingCustomers) || 0,
-                            monthlyGrowthRate: Number((settings.mrrSettings as { monthlyGrowthRate?: number }).monthlyGrowthRate) || 0,
-                            monthlyChurnRate: Number((settings.mrrSettings as { monthlyChurnRate?: number }).monthlyChurnRate) || 0,
-                            arpu: Number((settings.mrrSettings as { arpu?: number }).arpu) || 0,
-                            projectionMonths: Number((settings.mrrSettings as { projectionMonths?: number }).projectionMonths) || 12,
-                          } : undefined,
-                          burnRateSettings: settings.burnRateSettings && typeof settings.burnRateSettings === 'object' ? {
-                            startingCash: Number((settings.burnRateSettings as { startingCash?: number }).startingCash) || 0,
-                            monthlyRevenue: Number((settings.burnRateSettings as { monthlyRevenue?: number }).monthlyRevenue) || 0,
-                            monthlyExpenses: Number((settings.burnRateSettings as { monthlyExpenses?: number }).monthlyExpenses) || 0,
-                            projectionMonths: Number((settings.burnRateSettings as { projectionMonths?: number }).projectionMonths) || 12,
-                          } : undefined,
-                        },
-                      };
-                      
-                      setState((prev) => ({
-                        ...prev,
-                        plans: [...prev.plans, validatedPlan],
-                        activePlanId: validatedPlan.id,
-                      }));
-                      
-                      if (!existingPlan) {
-                        toast.success(`Plan "${finalName}" imported successfully!`);
-                      }
-                    } catch {
-                      toast.error('Unexpected error importing plan. Please try again.');
-                    }
-                  };
-                  
-                  reader.readAsText(file);
-                };
-                input.click();
-              }}
-            />
-
             <div className={`${activeTab === 'expenses' ? 'block' : 'hidden'}`}>
-              <ExpenseForm onAdd={addExpense} settings={activePlan.settings} />
+              <SummaryCards results={results} settings={activePlan.settings} />
+              <div className="mt-6">
+                <CalculatorControls
+                  settings={activePlan.settings}
+                  onUpdateSettings={(newSettings) => updatePlan({ settings: newSettings })}
+                  availableFunds={availableFunds}
+                  onUpdateAvailableFunds={setAvailableFunds}
+                  onExportPlan={() => {
+                    try {
+                      if (!activePlan) {
+                        toast.error('No active plan to export');
+                        return;
+                      }
+                      const dataStr = JSON.stringify(activePlan, null, 2);
+                      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                      const url = URL.createObjectURL(dataBlob);
+                      const link = document.createElement('a');
+                      link.href = url;
+                      link.download = `${activePlan.name.replace(/\s+/g, '_').toLowerCase()}_plan.json`;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      URL.revokeObjectURL(url);
+                      toast.success(`Plan "${activePlan.name}" exported successfully!`);
+                    } catch {
+                      toast.error('Failed to export plan. Please try again.');
+                    }
+                  }}
+                  onImportPlan={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.json,application/json';
+                    input.onchange = (e) => {
+                      const file = (e.target as HTMLInputElement).files?.[0];
+                      if (!file) return;
+                      if (file.size > 5 * 1024 * 1024) {
+                        toast.error('File too large. Maximum size is 5MB.');
+                        return;
+                      }
+                      if (!file.name.toLowerCase().endsWith('.json')) {
+                        toast.error('Invalid file type. Please select a JSON file.');
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onerror = () => {
+                        toast.error('Failed to read file. Please try again.');
+                      };
+                      reader.onload = (event) => {
+                        try {
+                          const content = event.target?.result as string;
+                          if (!content || content.trim() === '') {
+                            toast.error('File is empty.');
+                            return;
+                          }
+                          let importedPlan: unknown;
+                          try {
+                            importedPlan = JSON.parse(content);
+                          } catch {
+                            toast.error('Invalid JSON format. Please check the file.');
+                            return;
+                          }
+                          if (!importedPlan || typeof importedPlan !== 'object') {
+                            toast.error('Invalid plan file format.');
+                            return;
+                          }
+                          const plan = importedPlan as Record<string, unknown>;
+                          if (!plan.name || typeof plan.name !== 'string' || plan.name.trim() === '') {
+                            toast.error('Invalid plan: missing or empty name.');
+                            return;
+                          }
+                          if (!plan.expenses || !Array.isArray(plan.expenses)) {
+                            toast.error('Invalid plan: expenses must be an array.');
+                            return;
+                          }
+                          if (!plan.settings || typeof plan.settings !== 'object') {
+                            toast.error('Invalid plan: missing settings.');
+                            return;
+                          }
+                          const settings = plan.settings as Record<string, unknown>;
+                          const requiredSettings = ['targetRunwayMonths', 'bufferMonths', 'bufferPercentage', 'primaryCurrency'];
+                          for (const key of requiredSettings) {
+                            if (!(key in settings)) {
+                              toast.error(`Invalid plan: missing required setting "${key}".`);
+                              return;
+                            }
+                          }
+                          const existingPlan = state.plans.find(p => 
+                            p.name.toLowerCase() === plan.name!.toString().toLowerCase()
+                          );
+                          let finalName = plan.name as string;
+                          if (existingPlan) {
+                            const timestamp = new Date().toLocaleDateString();
+                            finalName = `${plan.name} (Imported ${timestamp})`;
+                            toast.warning(`Plan renamed to "${finalName}" to avoid duplicates.`);
+                          }
+                          const validatedPlan: Plan = {
+                            id: generateId(),
+                            name: finalName.trim(),
+                            createdAt: new Date().toISOString(),
+                            expenses: (plan.expenses as Array<Record<string, unknown>>).map(e => ({
+                              id: typeof e.id === 'string' ? e.id : generateId(),
+                              name: typeof e.name === 'string' ? e.name : 'Unnamed Expense',
+                              amount: typeof e.amount === 'number' ? e.amount : 0,
+                              type: e.type === 'recurring' ? 'recurring' : 'one-time',
+                              frequency: e.frequency === 'yearly' ? 'yearly' : 'monthly',
+                            })),
+                            settings: {
+                              targetRunwayMonths: Number(settings.targetRunwayMonths) || 12,
+                              bufferMonths: Number(settings.bufferMonths) || 3,
+                              bufferPercentage: Number(settings.bufferPercentage) || 20,
+                              primaryCurrency: String(settings.primaryCurrency || 'USD'),
+                              secondaryCurrency: String(settings.secondaryCurrency || 'EUR'),
+                              showSecondaryCurrency: Boolean(settings.showSecondaryCurrency),
+                              mrrSettings: settings.mrrSettings && typeof settings.mrrSettings === 'object' ? {
+                                startingMRR: Number((settings.mrrSettings as { startingMRR?: number }).startingMRR) || 0,
+                                startingCustomers: Number((settings.mrrSettings as { startingCustomers?: number }).startingCustomers) || 0,
+                                monthlyGrowthRate: Number((settings.mrrSettings as { monthlyGrowthRate?: number }).monthlyGrowthRate) || 0,
+                                monthlyChurnRate: Number((settings.mrrSettings as { monthlyChurnRate?: number }).monthlyChurnRate) || 0,
+                                arpu: Number((settings.mrrSettings as { arpu?: number }).arpu) || 0,
+                                projectionMonths: Number((settings.mrrSettings as { projectionMonths?: number }).projectionMonths) || 12,
+                              } : undefined,
+                              burnRateSettings: settings.burnRateSettings && typeof settings.burnRateSettings === 'object' ? {
+                                startingCash: Number((settings.burnRateSettings as { startingCash?: number }).startingCash) || 0,
+                                monthlyRevenue: Number((settings.burnRateSettings as { monthlyRevenue?: number }).monthlyRevenue) || 0,
+                                monthlyExpenses: Number((settings.burnRateSettings as { monthlyExpenses?: number }).monthlyExpenses) || 0,
+                                projectionMonths: Number((settings.burnRateSettings as { projectionMonths?: number }).projectionMonths) || 12,
+                              } : undefined,
+                            },
+                          };
+                          setState((prev) => ({
+                            ...prev,
+                            plans: [...prev.plans, validatedPlan],
+                            activePlanId: validatedPlan.id,
+                          }));
+                          if (!existingPlan) {
+                            toast.success(`Plan "${finalName}" imported successfully!`);
+                          }
+                        } catch {
+                          toast.error('Unexpected error importing plan. Please try again.');
+                        }
+                      };
+                      reader.readAsText(file);
+                    };
+                    input.click();
+                  }}
+                />
+              </div>
+              <div className="mt-6">
+                <ExpenseForm onAdd={addExpense} settings={activePlan.settings} />
+              </div>
               <div className="mt-4">
                 <ExpenseList
                   expenses={activePlan.expenses}
