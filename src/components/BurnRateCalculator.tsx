@@ -1,5 +1,5 @@
 import type { PlanSettings, Expense, BurnRateSettings, RevenueStream } from '../types';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Flame, DollarSign, Calendar, AlertTriangle, TrendingDown, Clock, Plus, Trash2 } from 'lucide-react';
 import { getCurrencySymbol } from '../hooks/useExchangeRates';
 import { sanitizeMoneyInput, parseMoneyInput } from '../utils/money';
@@ -17,6 +17,7 @@ interface MonthData {
   month: number;
   date: string;
   startingCash: number;
+  monthlyRevenue: number;
   monthlyBurn: number;
   endingCash: number;
   runwayMonths: number;
@@ -35,6 +36,18 @@ export function BurnRateCalculator({
   const [newStreamName, setNewStreamName] = useState('');
   const [newStreamAmount, setNewStreamAmount] = useState('');
   const [newStreamFrequency, setNewStreamFrequency] = useState<'monthly' | 'yearly'>('monthly');
+  const [newStreamStartMonth, setNewStreamStartMonth] = useState('0');
+
+  const monthOptions = useMemo(() => {
+    const now = new Date();
+    const opts: { label: string; value: number }[] = [];
+    for (let i = 0; i < 24; i++) {
+      const d = new Date(now);
+      d.setMonth(now.getMonth() + i);
+      opts.push({ label: d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }), value: i });
+    }
+    return opts;
+  }, []);
 
   // Calculate monthly expenses from existing expense data
   const calculatedMonthlyExpenses = useMemo(() => {
@@ -51,12 +64,16 @@ export function BurnRateCalculator({
     return monthlyTotal;
   }, [expenses]);
 
-  const totalMonthlyRevenue = useMemo(() => {
+  const monthlyRevenueAt = useCallback((monthIndex: number) => {
     return burnSettings.revenueStreams.reduce((sum, stream) => {
+      const startsAt = typeof stream.startMonth === 'number' ? stream.startMonth : 0;
+      if (monthIndex < startsAt) return sum;
       const monthlyAmount = stream.frequency === 'yearly' ? stream.amount / 12 : stream.amount;
       return sum + monthlyAmount;
     }, 0);
   }, [burnSettings.revenueStreams]);
+
+  const totalMonthlyRevenue = useMemo(() => monthlyRevenueAt(0), [monthlyRevenueAt]);
 
   const netBurn = calculatedMonthlyExpenses - totalMonthlyRevenue;
   const isProfitable = netBurn <= 0;
@@ -80,6 +97,7 @@ export function BurnRateCalculator({
   const handleAddStream = (e: React.FormEvent) => {
     e.preventDefault();
     const amountValue = parseMoneyInput(newStreamAmount);
+    const startMonthValue = Math.max(0, parseInt(newStreamStartMonth || '0', 10) || 0);
     if (!newStreamName.trim() || amountValue <= 0) return;
 
     onUpdateBurnSettings((prev) => ({
@@ -92,6 +110,7 @@ export function BurnRateCalculator({
           amount: amountValue,
           frequency: newStreamFrequency,
           currency: settings.primaryCurrency,
+          startMonth: startMonthValue,
         },
       ],
     }));
@@ -99,6 +118,7 @@ export function BurnRateCalculator({
     setNewStreamName('');
     setNewStreamAmount('');
     setNewStreamFrequency('monthly');
+    setNewStreamStartMonth('0');
   };
 
   const handleStreamChange = (id: string, updates: Partial<RevenueStream>) => {
@@ -132,10 +152,12 @@ export function BurnRateCalculator({
       const date = new Date();
       date.setMonth(date.getMonth() + month);
 
-      const runwayMonths = isProfitable || netBurn === 0 ? Infinity : currentCash / netBurn;
+      const monthlyRevenue = monthlyRevenueAt(month);
+      const thisMonthNetBurn = calculatedMonthlyExpenses - monthlyRevenue;
+      const runwayMonths = thisMonthNetBurn <= 0 ? Infinity : currentCash / thisMonthNetBurn;
       let status: 'healthy' | 'warning' | 'critical';
       
-      if (isProfitable || runwayMonths > 12) {
+      if (thisMonthNetBurn <= 0 || runwayMonths > 12) {
         status = 'healthy';
       } else if (runwayMonths > 6) {
         status = 'warning';
@@ -147,14 +169,15 @@ export function BurnRateCalculator({
         month,
         date: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
         startingCash: currentCash,
-        monthlyBurn: month === 0 ? 0 : netBurn,
-        endingCash: currentCash - (month === 0 ? 0 : netBurn),
+        monthlyRevenue,
+        monthlyBurn: month === 0 ? 0 : thisMonthNetBurn,
+        endingCash: currentCash - (month === 0 ? 0 : thisMonthNetBurn),
         runwayMonths,
         status,
       });
 
       if (month > 0) {
-        currentCash -= netBurn;
+        currentCash -= thisMonthNetBurn;
       }
       
       // Stop if we run out of cash
@@ -162,7 +185,7 @@ export function BurnRateCalculator({
     }
 
     return data;
-  }, [burnSettings.startingCash, burnSettings.projectionMonths, netBurn, isProfitable]);
+  }, [burnSettings.startingCash, burnSettings.projectionMonths, calculatedMonthlyExpenses, monthlyRevenueAt]);
 
   const formatCurrency = (value: number) => {
     if (value === Infinity) return '∞';
@@ -176,15 +199,33 @@ export function BurnRateCalculator({
     return `${sign}${symbol}${formatted}`;
   };
 
-  const currentRunway = isProfitable || netBurn === 0 ? Infinity : burnSettings.startingCash / netBurn;
+  const formatRunway = (months: number) => {
+    if (months === Infinity) return '∞';
+    const yrs = Math.floor(months / 12);
+    const mos = Math.floor(months % 12);
+    if (yrs <= 0) return `${mos} mo`;
+    return mos > 0 ? `${yrs} yr${yrs > 1 ? 's' : ''} ${mos} mo` : `${yrs} yr${yrs > 1 ? 's' : ''}`;
+  };
+  const burnMultiple = totalMonthlyRevenue <= 0 ? null : calculatedMonthlyExpenses / totalMonthlyRevenue;
+
+  const projectedRunwayMonths = useMemo(() => {
+    if (!projections.length) return 0;
+    const firstBelowZero = projections.find((p) => p.endingCash < 0);
+    const lastNonNegative = projections
+      .filter((p) => p.endingCash >= 0)
+      .sort((a, b) => b.month - a.month)[0];
+    if (firstBelowZero) {
+      return Math.max(0, firstBelowZero.month);
+    }
+    return lastNonNegative ? lastNonNegative.month : 0;
+  }, [projections]);
+
   const cashOutDate = useMemo(() => {
     if (isProfitable) return null;
     const date = new Date();
-    date.setMonth(date.getMonth() + Math.floor(currentRunway));
+    date.setMonth(date.getMonth() + Math.floor(projectedRunwayMonths));
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
-  }, [isProfitable, currentRunway]);
-
-  const burnMultiple = totalMonthlyRevenue <= 0 ? null : calculatedMonthlyExpenses / totalMonthlyRevenue;
+  }, [isProfitable, projectedRunwayMonths]);
 
   return (
     <div className="space-y-6">
@@ -263,7 +304,7 @@ export function BurnRateCalculator({
             </div>
           </div>
 
-          <form onSubmit={handleAddStream} className="grid grid-cols-1 md:grid-cols-[2fr,1fr,auto,auto] gap-3 p-4 border border-gray-200 rounded-xl bg-gray-50">
+          <form onSubmit={handleAddStream} className="grid grid-cols-1 md:grid-cols-[2fr,1fr,auto,auto,auto] gap-3 p-4 border border-gray-200 rounded-xl bg-gray-50">
             <input
               type="text"
               value={newStreamName}
@@ -283,6 +324,16 @@ export function BurnRateCalculator({
                 required
               />
             </div>
+            <select
+              value={newStreamStartMonth}
+              onChange={(e) => setNewStreamStartMonth(e.target.value)}
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              title="Start month"
+            >
+              {monthOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
             <select
               value={newStreamFrequency}
               onChange={(e) => setNewStreamFrequency(e.target.value as 'monthly' | 'yearly')}
@@ -332,6 +383,16 @@ export function BurnRateCalculator({
                     <option value="monthly">Monthly</option>
                     <option value="yearly">Yearly</option>
                   </select>
+                  <select
+                    value={(stream.startMonth ?? 0).toString()}
+                    onChange={(e) => handleStreamChange(stream.id, { startMonth: Math.max(0, parseInt(e.target.value || '0', 10) || 0) })}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    title="Start month"
+                  >
+                    {monthOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
                   <button
                     type="button"
                     onClick={() => handleDeleteStream(stream.id)}
@@ -363,7 +424,7 @@ export function BurnRateCalculator({
           <div className="bg-purple-50 p-4 rounded-lg">
             <p className="text-sm text-gray-600">Current Runway</p>
             <p className="text-xl font-bold text-gray-900">
-              {isProfitable ? '∞' : `${currentRunway.toFixed(1)} months`}
+              {isProfitable ? '∞' : formatRunway(projectedRunwayMonths)}
             </p>
             <p className="text-xs text-gray-500">
               {isProfitable ? 'No cash out date' : `Until ${cashOutDate}`}
@@ -378,21 +439,21 @@ export function BurnRateCalculator({
               Expenses / Revenue
             </p>
           </div>
-          <div className={`${currentRunway > 12 || isProfitable ? 'bg-green-50' : currentRunway > 6 ? 'bg-yellow-50' : 'bg-red-50'} p-4 rounded-lg`}>
+          <div className={`${projectedRunwayMonths > 12 || isProfitable ? 'bg-green-50' : projectedRunwayMonths > 6 ? 'bg-yellow-50' : 'bg-red-50'} p-4 rounded-lg`}>
             <p className="text-sm text-gray-600">Status</p>
             <p className="text-xl font-bold text-gray-900 flex items-center gap-1">
               {isProfitable ? (
                 <>Healthy <Clock className="w-5 h-5 text-green-600" /></>
-              ) : currentRunway > 12 ? (
+              ) : projectedRunwayMonths > 12 ? (
                 <>Healthy <Clock className="w-5 h-5 text-green-600" /></>
-              ) : currentRunway > 6 ? (
+              ) : projectedRunwayMonths > 6 ? (
                 <>Warning <AlertTriangle className="w-5 h-5 text-yellow-600" /></>
               ) : (
                 <>Critical <AlertTriangle className="w-5 h-5 text-red-600" /></>
               )}
             </p>
             <p className="text-xs text-gray-500">
-              {isProfitable ? 'Generating profit' : currentRunway > 12 ? '12+ months runway' : currentRunway > 6 ? '6-12 months runway' : 'Less than 6 months'}
+              {isProfitable ? 'Generating profit' : projectedRunwayMonths > 12 ? '12+ months runway' : projectedRunwayMonths > 6 ? '6-12 months runway' : 'Less than 6 months'}
             </p>
           </div>
         </div>
@@ -422,7 +483,7 @@ export function BurnRateCalculator({
                 >
                   <td className="py-2 px-3 text-gray-900">{data.month === 0 ? 'Now' : data.date}</td>
                   <td className="text-right py-2 px-3 text-gray-700">{formatCurrency(data.startingCash)}</td>
-                  <td className="text-right py-2 px-3 text-green-600">{formatCurrency(totalMonthlyRevenue)}</td>
+                  <td className="text-right py-2 px-3 text-green-600">{formatCurrency(data.monthlyRevenue)}</td>
                   <td className="text-right py-2 px-3 text-red-500">{formatCurrency(calculatedMonthlyExpenses)}</td>
                   <td className="text-right py-2 px-3 font-medium text-gray-900">
                     {data.month === 0 ? '-' : formatCurrency(data.monthlyBurn)}
@@ -436,7 +497,7 @@ export function BurnRateCalculator({
                       data.status === 'warning' ? 'bg-yellow-100 text-yellow-800' :
                       'bg-red-100 text-red-800'
                     }`}>
-                      {data.runwayMonths === Infinity ? '∞' : `${data.runwayMonths.toFixed(1)} mo`}
+                      {formatRunway(data.runwayMonths)}
                     </span>
                   </td>
                 </tr>

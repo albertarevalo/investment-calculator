@@ -1,4 +1,4 @@
-import type { AppState, Plan, BurnRateSettings, RevenueStream } from '../types';
+import type { AppState, Plan, BurnRateSettings, RevenueStream, PlanSettings } from '../types';
 
 const STORAGE_KEY = 'investment-calculator-data';
 
@@ -10,6 +10,29 @@ export const createDefaultBurnRateSettings = (): BurnRateSettings => ({
   startingCash: 0,
   projectionMonths: 12,
   revenueStreams: [],
+});
+
+export const createDefaultMrrSettings = (): NonNullable<PlanSettings['mrrSettings']> => ({
+  plans: [
+    {
+      id: generateId(),
+      name: 'Standard',
+      price: 50,
+      billing: 'monthly',
+      mix: 100,
+    },
+  ],
+  startingCustomers: 0,
+  monthlyLeads: 0,
+  trialStartRate: 30,
+  trialToPaidRate: 20,
+  salesCycleLag: 1,
+  monthlyChurnRate: 5,
+  expansionRate: 5,
+  contractionRate: 2,
+  manualCAC: 200,
+  useMarketingSpend: false,
+  projectionMonths: 12,
 });
 
 export const normalizeBurnRateSettings = (raw: any): BurnRateSettings => {
@@ -27,6 +50,7 @@ export const normalizeBurnRateSettings = (raw: any): BurnRateSettings => {
         amount: typeof stream.amount === 'number' ? stream.amount : 0,
         frequency: stream.frequency === 'yearly' ? 'yearly' : 'monthly',
         currency: typeof stream.currency === 'string' ? stream.currency : undefined,
+        startMonth: typeof stream.startMonth === 'number' ? stream.startMonth : 0,
       }))
     : [];
 
@@ -40,6 +64,7 @@ export const normalizeBurnRateSettings = (raw: any): BurnRateSettings => {
       amount: raw.monthlyRevenue,
       frequency: raw.revenueFrequency === 'yearly' ? 'yearly' : 'monthly',
       currency: typeof raw.currency === 'string' ? raw.currency : undefined,
+      startMonth: 0,
     });
   }
 
@@ -47,6 +72,51 @@ export const normalizeBurnRateSettings = (raw: any): BurnRateSettings => {
     startingCash: typeof raw.startingCash === 'number' ? raw.startingCash : 0,
     projectionMonths: typeof raw.projectionMonths === 'number' ? raw.projectionMonths : 12,
     revenueStreams,
+  };
+};
+
+export const normalizeMrrSettings = (raw: any): NonNullable<PlanSettings['mrrSettings']> => {
+  if (!raw || typeof raw !== 'object') return createDefaultMrrSettings();
+
+  // Old shape migration
+  const legacyStartingCustomers = typeof raw.startingCustomers === 'number' ? raw.startingCustomers : undefined;
+  const legacyArpu = typeof raw.arpu === 'number' ? raw.arpu : undefined;
+  const legacyStartingMrr = typeof raw.startingMRR === 'number' ? raw.startingMRR : undefined;
+  const legacyProjectionMonths = typeof raw.projectionMonths === 'number' ? raw.projectionMonths : undefined;
+  const legacyMonthlyChurnRate = typeof raw.monthlyChurnRate === 'number' ? raw.monthlyChurnRate : undefined;
+
+  const plans = Array.isArray(raw.plans)
+    ? raw.plans.map((p: any) => ({
+        id: typeof p.id === 'string' ? p.id : generateId(),
+        name: typeof p.name === 'string' && p.name.trim() ? p.name.trim() : 'Plan',
+        price: typeof p.price === 'number' ? p.price : 0,
+        billing: p.billing === 'annual' ? 'annual' : 'monthly',
+        mix: typeof p.mix === 'number' ? p.mix : 0,
+      }))
+    : legacyArpu !== undefined
+      ? [{ id: generateId(), name: 'Standard', price: legacyArpu, billing: 'monthly', mix: 100 }]
+      : createDefaultMrrSettings().plans;
+
+  const startingCustomers =
+    legacyStartingCustomers !== undefined
+      ? legacyStartingCustomers
+      : legacyStartingMrr !== undefined && legacyArpu && legacyArpu > 0
+        ? Math.round(legacyStartingMrr / legacyArpu)
+        : 0;
+
+  return {
+    plans,
+    startingCustomers,
+    monthlyLeads: typeof raw.monthlyLeads === 'number' ? raw.monthlyLeads : 0,
+    trialStartRate: typeof raw.trialStartRate === 'number' ? raw.trialStartRate : 30,
+    trialToPaidRate: typeof raw.trialToPaidRate === 'number' ? raw.trialToPaidRate : 20,
+    salesCycleLag: typeof raw.salesCycleLag === 'number' ? raw.salesCycleLag : 1,
+    monthlyChurnRate: typeof raw.monthlyChurnRate === 'number' ? raw.monthlyChurnRate : legacyMonthlyChurnRate ?? 5,
+    expansionRate: typeof raw.expansionRate === 'number' ? raw.expansionRate : 5,
+    contractionRate: typeof raw.contractionRate === 'number' ? raw.contractionRate : 2,
+    manualCAC: typeof raw.manualCAC === 'number' ? raw.manualCAC : 200,
+    useMarketingSpend: typeof raw.useMarketingSpend === 'boolean' ? raw.useMarketingSpend : false,
+    projectionMonths: typeof raw.projectionMonths === 'number' ? raw.projectionMonths : legacyProjectionMonths ?? 12,
   };
 };
 
@@ -63,6 +133,7 @@ export const createDefaultPlan = (): Plan => ({
     secondaryCurrency: 'EUR',
     showSecondaryCurrency: false,
     showMrrTab: false,
+    mrrSettings: createDefaultMrrSettings(),
     burnRateSettings: createDefaultBurnRateSettings(),
   },
 });
@@ -96,6 +167,7 @@ export const loadState = (): AppState => {
           settings: {
             ...plan.settings,
             showMrrTab: typeof oldSettings.showMrrTab === 'boolean' ? oldSettings.showMrrTab : false,
+            mrrSettings: normalizeMrrSettings(oldSettings?.mrrSettings),
             burnRateSettings: normalizeBurnRateSettings(oldSettings?.burnRateSettings),
           },
         };

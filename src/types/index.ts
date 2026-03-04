@@ -16,6 +16,7 @@ export interface RevenueStream {
   amount: number;
   frequency: RecurringFrequency;
   currency?: string;
+  startMonth?: number; // month offset (0 = current month)
 }
 
 export interface BurnRateSettings {
@@ -34,11 +35,23 @@ export interface PlanSettings {
   showMrrTab?: boolean;
   // MRR/ARR Calculator settings
   mrrSettings?: {
-    startingMRR: number;
+    plans: {
+      id: string;
+      name: string;
+      price: number;
+      billing: 'monthly' | 'annual';
+      mix: number; // percentage weight of new customers choosing this plan
+    }[];
     startingCustomers: number;
-    monthlyGrowthRate: number;
+    monthlyLeads: number;
+    trialStartRate: number; // % of leads starting trial
+    trialToPaidRate: number; // % of trials converting
+    salesCycleLag: number; // months delay before conversion
     monthlyChurnRate: number;
-    arpu: number;
+    expansionRate: number; // % of existing MRR expanding
+    contractionRate: number; // % of existing MRR downgrading
+    manualCAC: number; // cost to acquire a customer for marketing derived leads
+    useMarketingSpend: boolean;
     projectionMonths: number;
   };
   // Burn Rate Calculator settings

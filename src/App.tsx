@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import type { AppState, Expense, Plan, BurnRateSettings } from './types';
-import { loadState, saveState, createDefaultPlan, generateId, createDefaultBurnRateSettings, normalizeBurnRateSettings } from './utils/storage';
+import { loadState, saveState, createDefaultPlan, generateId, createDefaultBurnRateSettings, normalizeBurnRateSettings, createDefaultMrrSettings, normalizeMrrSettings } from './utils/storage';
 import { calculateResults } from './utils/calculator';
 import { ExpenseList } from './components/ExpenseList';
 import { ExpenseForm } from './components/ExpenseForm';
@@ -345,14 +345,9 @@ function App() {
                           primaryCurrency: String(settings.primaryCurrency || 'USD'),
                           secondaryCurrency: String(settings.secondaryCurrency || 'EUR'),
                           showSecondaryCurrency: Boolean(settings.showSecondaryCurrency),
-                          mrrSettings: settings.mrrSettings && typeof settings.mrrSettings === 'object' ? {
-                            startingMRR: Number((settings.mrrSettings as { startingMRR?: number }).startingMRR) || 0,
-                            startingCustomers: Number((settings.mrrSettings as { startingCustomers?: number }).startingCustomers) || 0,
-                            monthlyGrowthRate: Number((settings.mrrSettings as { monthlyGrowthRate?: number }).monthlyGrowthRate) || 0,
-                            monthlyChurnRate: Number((settings.mrrSettings as { monthlyChurnRate?: number }).monthlyChurnRate) || 0,
-                            arpu: Number((settings.mrrSettings as { arpu?: number }).arpu) || 0,
-                            projectionMonths: Number((settings.mrrSettings as { projectionMonths?: number }).projectionMonths) || 12,
-                          } : undefined,
+                          mrrSettings: settings.mrrSettings && typeof settings.mrrSettings === 'object'
+                            ? normalizeMrrSettings(settings.mrrSettings)
+                            : createDefaultMrrSettings(),
                           burnRateSettings: settings.burnRateSettings && typeof settings.burnRateSettings === 'object'
                             ? normalizeBurnRateSettings(settings.burnRateSettings)
                             : createDefaultBurnRateSettings(),
