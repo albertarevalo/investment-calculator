@@ -1,6 +1,6 @@
 import type { PlanSettings } from '../types';
 import { useExchangeRates, CURRENCIES, getCurrencySymbol } from '../hooks/useExchangeRates';
-import { Settings2, DollarSign, Clock, Percent, Shield, Globe, Download, Upload } from 'lucide-react';
+import { Settings2, DollarSign, Clock, Percent, Shield, Globe, Download, Upload, ArrowLeftRight } from 'lucide-react';
 
 interface CalculatorControlsProps {
   settings: PlanSettings;
@@ -64,7 +64,7 @@ export function CalculatorControls({
           </div>
 
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-[1fr,auto,1fr] gap-2 items-end">
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Primary Currency</label>
                 <select
@@ -84,6 +84,19 @@ export function CalculatorControls({
                   ))}
                 </select>
               </div>
+              <button
+                onClick={() => {
+                  onUpdateSettings({
+                    ...settings,
+                    primaryCurrency: settings.secondaryCurrency,
+                    secondaryCurrency: settings.primaryCurrency,
+                  });
+                }}
+                className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                title="Swap currencies"
+              >
+                <ArrowLeftRight className="w-4 h-4" />
+              </button>
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Secondary Currency</label>
                 <select
@@ -134,9 +147,9 @@ export function CalculatorControls({
           <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-2">
             <DollarSign className="w-4 h-4" />
             Available Funds
-            {settings.showSecondaryCurrency && rates && (
+            {settings.showSecondaryCurrency && rates && availableFunds > 0 && (
               <span className="text-xs font-normal text-gray-500">
-                ({secondarySymbol}{convert(availableFunds, settings.primaryCurrency, settings.secondaryCurrency).toFixed(0)})
+                ({secondarySymbol}{convert(availableFunds, settings.primaryCurrency, settings.secondaryCurrency).toLocaleString('en-US')})
               </span>
             )}
           </label>
