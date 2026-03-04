@@ -4,16 +4,31 @@ A responsive React-based investment calculator for managing expenses and calcula
 
 ![PawsMatch Logo](https://nbsxlhidzrtafcgvzkvf.supabase.co/storage/v1/object/public/pawsmatch-bucket/images/logo.png)
 
+**Live Demo**: https://investment-calculator-three-omega.vercel.app/
+
 ## Features
 
-- **Expense Management**: Track one-time and recurring expenses (monthly/yearly)
 - **Runway Calculator**: Calculate how long your investment will last or how much you need for a specific timeframe
+- **Expense Management**: Track one-time and recurring expenses (monthly/yearly)
 - **Multi-Plan Support**: Create, compare, and manage multiple budget plans
 - **Safety Buffer**: Add buffer percentages and extra months for financial safety
 - **Dual Currency Support**: Primary and secondary currency with live exchange rates
 - **Data Import/Export**: Export and import plans as JSON files
 - **Visual Charts**: Interactive charts for expense breakdown and projections
 - **Responsive Design**: Works on desktop, tablet, and mobile devices
+
+### SaaS Startup Tools
+
+- **MRR/ARR Projector**: Project Monthly/Annual Recurring Revenue based on growth rate, churn rate, and ARPU
+  - Track customer growth and churn
+  - See projected MRR/ARR over time
+  - Calculate net revenue impact
+  
+- **Burn Rate Analyzer**: Analyze cash burn rate and runway
+  - Track monthly burn vs revenue
+  - Calculate runway until cash runs out
+  - See cash out date prediction
+  - Visual status indicators (healthy/warning/critical)
 
 ## Tech Stack
 
@@ -53,10 +68,10 @@ npm run build
 
 ## Usage
 
-1. **Add Expenses**: Click "Add Expense" to add one-time or recurring expenses
-2. **Set Runway**: Adjust the target runway months to see required investment
-3. **Add Buffer**: Enable safety buffer for extra financial security
-4. **Compare Plans**: Create multiple plans and compare them side-by-side
+1. **Runway Calculator**: Add expenses, set runway, see required investment
+2. **MRR/ARR Projector**: Track SaaS metrics, growth, and revenue projections
+3. **Burn Rate Analyzer**: Monitor cash burn, runway, and cash out dates
+4. **Multi-Plan**: Create and compare different scenarios
 5. **Export/Import**: Save plans as JSON files and import them later
 
 ## Currency Support

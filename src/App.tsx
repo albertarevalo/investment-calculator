@@ -9,14 +9,16 @@ import { CalculatorControls } from './components/CalculatorControls';
 import { Charts } from './components/Charts';
 import { PlanManager } from './components/PlanManager';
 import { CompareModal } from './components/CompareModal';
-import { PieChart, LayoutDashboard } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, Flame } from 'lucide-react';
+import { MRRCalculator } from './components/MRRCalculator';
+import { BurnRateCalculator } from './components/BurnRateCalculator';
 import { useToast, ToastContainer, toast } from './hooks/useToast.tsx';
 
 function App() {
   const [state, setState] = useState<AppState>(loadState);
   const [availableFunds, setAvailableFunds] = useState<number>(0);
   const [showCompare, setShowCompare] = useState(false);
-  const [activeTab, setActiveTab] = useState<'expenses' | 'charts'>('expenses');
+  const [activeTab, setActiveTab] = useState<'expenses' | 'charts' | 'mrr' | 'burn'>('expenses');
   const { toasts, removeToast } = useToast();
 
   useEffect(() => {
@@ -331,34 +333,45 @@ function App() {
               }}
             />
             
-            <div className="lg:hidden">
-              <div className="flex gap-2 mb-4">
+            <div className="mb-6">
+              <div className="flex flex-wrap gap-2 bg-white p-2 rounded-lg shadow-sm border border-gray-100">
                 <button
                   onClick={() => setActiveTab('expenses')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-colors ${
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
                     activeTab === 'expenses'
                       ? 'bg-blue-600 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
                   <LayoutDashboard className="w-4 h-4" />
-                  Expenses
+                  Runway Calculator
                 </button>
                 <button
-                  onClick={() => setActiveTab('charts')}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-colors ${
-                    activeTab === 'charts'
+                  onClick={() => setActiveTab('mrr')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    activeTab === 'mrr'
                       ? 'bg-blue-600 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   }`}
                 >
-                  <PieChart className="w-4 h-4" />
-                  Charts
+                  <TrendingUp className="w-4 h-4" />
+                  MRR/ARR
+                </button>
+                <button
+                  onClick={() => setActiveTab('burn')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                    activeTab === 'burn'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <Flame className="w-4 h-4" />
+                  Burn Rate
                 </button>
               </div>
             </div>
 
-            <div className={`${activeTab === 'expenses' ? 'block' : 'hidden lg:block'}`}>
+            <div className={`${activeTab === 'expenses' ? 'block' : 'hidden'}`}>
               <ExpenseForm onAdd={addExpense} settings={activePlan.settings} />
               <div className="mt-4">
                 <ExpenseList
@@ -368,6 +381,14 @@ function App() {
                   settings={activePlan.settings}
                 />
               </div>
+            </div>
+
+            <div className={`${activeTab === 'mrr' ? 'block' : 'hidden'}`}>
+              <MRRCalculator settings={activePlan.settings} />
+            </div>
+
+            <div className={`${activeTab === 'burn' ? 'block' : 'hidden'}`}>
+              <BurnRateCalculator settings={activePlan.settings} />
             </div>
 
             <div className={`lg:hidden ${activeTab === 'charts' ? 'block' : 'hidden'}`}>
