@@ -7,6 +7,7 @@ export interface Expense {
   amount: number;
   type: ExpenseType;
   frequency?: RecurringFrequency;
+  currency?: string; // Currency this expense was created in
 }
 
 export interface PlanSettings {

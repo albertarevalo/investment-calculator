@@ -13,6 +13,7 @@ import { LayoutDashboard, TrendingUp, Flame } from 'lucide-react';
 import { MRRCalculator } from './components/MRRCalculator';
 import { BurnRateCalculator } from './components/BurnRateCalculator';
 import { useToast, ToastContainer, toast } from './hooks/useToast.tsx';
+import { useExchangeRates } from './hooks/useExchangeRates.ts';
 
 function App() {
   const [state, setState] = useState<AppState>(loadState);
@@ -20,6 +21,7 @@ function App() {
   const [showCompare, setShowCompare] = useState(false);
   const [activeTab, setActiveTab] = useState<'expenses' | 'charts' | 'mrr' | 'burn'>('expenses');
   const { toasts, removeToast } = useToast();
+  const { convert, rates } = useExchangeRates();
 
   useEffect(() => {
     saveState(state);
@@ -35,19 +37,50 @@ function App() {
   }, [activePlan, availableFunds]);
 
   const updatePlan = useCallback((updates: Partial<Plan>) => {
-    setState((prev) => ({
-      ...prev,
-      plans: prev.plans.map((p) =>
-        p.id === prev.activePlanId ? { ...p, ...updates } : p
-      ),
-    }));
-  }, []);
+    setState((prev) => {
+      const currentPlan = prev.plans.find((p) => p.id === prev.activePlanId);
+      if (!currentPlan) return prev;
 
-  const addExpense = useCallback((expense: Omit<Expense, 'id'>) => {
-    const newExpense: Expense = { ...expense, id: generateId() };
-    updatePlan({
-      expenses: [...(activePlan?.expenses || []), newExpense],
+      const newSettings = updates.settings || currentPlan.settings;
+      const oldPrimaryCurrency = currentPlan.settings.primaryCurrency;
+      const newPrimaryCurrency = newSettings.primaryCurrency;
+
+      // If primary currency changed, convert all expenses
+      let newExpenses = updates.expenses || currentPlan.expenses;
+      if (oldPrimaryCurrency !== newPrimaryCurrency && rates) {
+        newExpenses = newExpenses.map(expense => {
+          const expenseCurrency = expense.currency || oldPrimaryCurrency;
+          if (expenseCurrency === newPrimaryCurrency) {
+            return { ...expense, currency: newPrimaryCurrency };
+          }
+          const convertedAmount = convert(expense.amount, expenseCurrency, newPrimaryCurrency);
+          return {
+            ...expense,
+            amount: Math.round(convertedAmount * 100) / 100,
+            currency: newPrimaryCurrency
+          };
+        });
+        toast.success(`Converted expenses to ${newPrimaryCurrency}`);
+      }
+
+      return {
+        ...prev,
+        plans: prev.plans.map((p) =>
+          p.id === prev.activePlanId
+            ? { ...p, ...updates, settings: { ...p.settings, ...newSettings }, expenses: newExpenses }
+            : p
+        ),
+      };
     });
+  }, [convert, rates]);
+
+  const addExpense = useCallback((expenseData: Omit<Expense, 'id' | 'currency'>) => {
+    const newExpense: Expense = {
+      ...expenseData,
+      id: generateId(),
+      currency: activePlan.settings.primaryCurrency,
+    };
+    updatePlan({ expenses: [...activePlan.expenses, newExpense] });
   }, [activePlan, updatePlan]);
 
   const updateExpense = useCallback((id: string, updates: Partial<Expense>) => {
