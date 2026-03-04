@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Plan } from '../types';
-import { ChevronDown, Plus, Trash2, Copy, GitCompare, Download, Edit2, Check, X } from 'lucide-react';
+import { ChevronDown, Plus, Trash2, Copy, GitCompare, Download, Edit2, Check, X, Upload } from 'lucide-react';
 
 interface PlanManagerProps {
   plans: Plan[];
@@ -12,6 +12,7 @@ interface PlanManagerProps {
   onCompare: () => void;
   onRenamePlan?: (planId: string, newName: string) => void;
   onExportPlan?: (plan: Plan) => void;
+  onImportPlan?: () => void;
 }
 
 export function PlanManager({
@@ -24,6 +25,7 @@ export function PlanManager({
   onCompare,
   onRenamePlan,
   onExportPlan,
+  onImportPlan,
 }: PlanManagerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [newPlanName, setNewPlanName] = useState('');
@@ -198,6 +200,18 @@ export function PlanManager({
               ))}
 
               <div className="border-t border-gray-200 mt-2 pt-2">
+                {onImportPlan && (
+                  <button
+                    onClick={() => {
+                      onImportPlan();
+                      setIsOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm font-medium text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Import Plan
+                  </button>
+                )}
                 {!showNewPlanInput ? (
                   <button
                     onClick={() => setShowNewPlanInput(true)}
