@@ -16,6 +16,22 @@ export interface PlanSettings {
   primaryCurrency: string;
   secondaryCurrency: string;
   showSecondaryCurrency: boolean;
+  // MRR/ARR Calculator settings
+  mrrSettings?: {
+    startingMRR: number;
+    startingCustomers: number;
+    monthlyGrowthRate: number;
+    monthlyChurnRate: number;
+    arpu: number;
+    projectionMonths: number;
+  };
+  // Burn Rate Calculator settings
+  burnRateSettings?: {
+    startingCash: number;
+    monthlyRevenue: number;
+    monthlyExpenses: number;
+    projectionMonths: number;
+  };
 }
 
 export interface Plan {

@@ -4,6 +4,7 @@ import { TrendingUp, Users, DollarSign, Target, ArrowUpRight, ArrowDownRight } f
 
 interface MRRCalculatorProps {
   settings: PlanSettings;
+  onUpdateSettings: (newSettings: Partial<PlanSettings>) => void;
 }
 
 interface MonthData {
@@ -17,13 +18,30 @@ interface MonthData {
   netRevenue: number;
 }
 
-export function MRRCalculator({ settings }: MRRCalculatorProps) {
-  const [startingMRR, setStartingMRR] = useState<number>(10000);
-  const [startingCustomers, setStartingCustomers] = useState<number>(100);
-  const [monthlyGrowthRate, setMonthlyGrowthRate] = useState<number>(10);
-  const [monthlyChurnRate, setMonthlyChurnRate] = useState<number>(5);
-  const [arpu, setArpu] = useState<number>(100);
-  const [projectionMonths, setProjectionMonths] = useState<number>(12);
+export function MRRCalculator({ settings, onUpdateSettings }: MRRCalculatorProps) {
+  const mrrSettings = settings.mrrSettings;
+  const [startingMRR, setStartingMRR] = useState<number>(mrrSettings?.startingMRR ?? 0);
+  const [startingCustomers, setStartingCustomers] = useState<number>(mrrSettings?.startingCustomers ?? 0);
+  const [monthlyGrowthRate, setMonthlyGrowthRate] = useState<number>(mrrSettings?.monthlyGrowthRate ?? 0);
+  const [monthlyChurnRate, setMonthlyChurnRate] = useState<number>(mrrSettings?.monthlyChurnRate ?? 0);
+  const [arpu, setArpu] = useState<number>(mrrSettings?.arpu ?? 0);
+  const [projectionMonths, setProjectionMonths] = useState<number>(mrrSettings?.projectionMonths ?? 12);
+
+  // Save settings when values change
+  const updateMRRSettings = (updates: Partial<typeof mrrSettings>) => {
+    onUpdateSettings({
+      mrrSettings: {
+        startingMRR,
+        startingCustomers,
+        monthlyGrowthRate,
+        monthlyChurnRate,
+        arpu,
+        projectionMonths,
+        ...mrrSettings,
+        ...updates
+      }
+    });
+  };
 
   const symbol = settings?.primaryCurrency === 'USD' ? '$' : 
                  settings?.primaryCurrency === 'EUR' ? '€' : 
@@ -110,7 +128,11 @@ export function MRRCalculator({ settings }: MRRCalculatorProps) {
               <input
                 type="number"
                 value={startingMRR || ''}
-                onChange={(e) => setStartingMRR(parseFloat(e.target.value) || 0)}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value) || 0;
+                  setStartingMRR(val);
+                  updateMRRSettings({ startingMRR: val });
+                }}
                 className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -124,7 +146,11 @@ export function MRRCalculator({ settings }: MRRCalculatorProps) {
             <input
               type="number"
               value={startingCustomers || ''}
-              onChange={(e) => setStartingCustomers(parseInt(e.target.value) || 0)}
+              onChange={(e) => {
+                const val = parseInt(e.target.value) || 0;
+                setStartingCustomers(val);
+                updateMRRSettings({ startingCustomers: val });
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -137,7 +163,11 @@ export function MRRCalculator({ settings }: MRRCalculatorProps) {
             <input
               type="number"
               value={monthlyGrowthRate || ''}
-              onChange={(e) => setMonthlyGrowthRate(parseFloat(e.target.value) || 0)}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || 0;
+                setMonthlyGrowthRate(val);
+                updateMRRSettings({ monthlyGrowthRate: val });
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -150,7 +180,11 @@ export function MRRCalculator({ settings }: MRRCalculatorProps) {
             <input
               type="number"
               value={monthlyChurnRate || ''}
-              onChange={(e) => setMonthlyChurnRate(parseFloat(e.target.value) || 0)}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value) || 0;
+                setMonthlyChurnRate(val);
+                updateMRRSettings({ monthlyChurnRate: val });
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -165,7 +199,11 @@ export function MRRCalculator({ settings }: MRRCalculatorProps) {
               <input
                 type="number"
                 value={arpu || ''}
-                onChange={(e) => setArpu(parseFloat(e.target.value) || 0)}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value) || 0;
+                  setArpu(val);
+                  updateMRRSettings({ arpu: val });
+                }}
                 className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -179,7 +217,11 @@ export function MRRCalculator({ settings }: MRRCalculatorProps) {
             <input
               type="number"
               value={projectionMonths || ''}
-              onChange={(e) => setProjectionMonths(parseInt(e.target.value) || 12)}
+              onChange={(e) => {
+                const val = parseInt(e.target.value) || 12;
+                setProjectionMonths(val);
+                updateMRRSettings({ projectionMonths: val });
+              }}
               min={1}
               max={60}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"

@@ -174,6 +174,45 @@ function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Main Navigation Tabs */}
+        <div className="mb-6">
+          <div className="flex flex-wrap gap-2 bg-white p-2 rounded-xl shadow-sm border border-gray-100">
+            <button
+              onClick={() => setActiveTab('expenses')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                activeTab === 'expenses'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              Runway Calculator
+            </button>
+            <button
+              onClick={() => setActiveTab('mrr')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                activeTab === 'mrr'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <TrendingUp className="w-4 h-4" />
+              MRR/ARR
+            </button>
+            <button
+              onClick={() => setActiveTab('burn')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                activeTab === 'burn'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Flame className="w-4 h-4" />
+              Burn Rate
+            </button>
+          </div>
+        </div>
+
         <SummaryCards results={results} settings={activePlan.settings} />
 
         <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -310,6 +349,20 @@ function App() {
                           primaryCurrency: String(settings.primaryCurrency || 'USD'),
                           secondaryCurrency: String(settings.secondaryCurrency || 'EUR'),
                           showSecondaryCurrency: Boolean(settings.showSecondaryCurrency),
+                          mrrSettings: settings.mrrSettings && typeof settings.mrrSettings === 'object' ? {
+                            startingMRR: Number((settings.mrrSettings as { startingMRR?: number }).startingMRR) || 0,
+                            startingCustomers: Number((settings.mrrSettings as { startingCustomers?: number }).startingCustomers) || 0,
+                            monthlyGrowthRate: Number((settings.mrrSettings as { monthlyGrowthRate?: number }).monthlyGrowthRate) || 0,
+                            monthlyChurnRate: Number((settings.mrrSettings as { monthlyChurnRate?: number }).monthlyChurnRate) || 0,
+                            arpu: Number((settings.mrrSettings as { arpu?: number }).arpu) || 0,
+                            projectionMonths: Number((settings.mrrSettings as { projectionMonths?: number }).projectionMonths) || 12,
+                          } : undefined,
+                          burnRateSettings: settings.burnRateSettings && typeof settings.burnRateSettings === 'object' ? {
+                            startingCash: Number((settings.burnRateSettings as { startingCash?: number }).startingCash) || 0,
+                            monthlyRevenue: Number((settings.burnRateSettings as { monthlyRevenue?: number }).monthlyRevenue) || 0,
+                            monthlyExpenses: Number((settings.burnRateSettings as { monthlyExpenses?: number }).monthlyExpenses) || 0,
+                            projectionMonths: Number((settings.burnRateSettings as { projectionMonths?: number }).projectionMonths) || 12,
+                          } : undefined,
                         },
                       };
                       
@@ -332,44 +385,6 @@ function App() {
                 input.click();
               }}
             />
-            
-            <div className="mb-6">
-              <div className="flex flex-wrap gap-2 bg-white p-2 rounded-lg shadow-sm border border-gray-100">
-                <button
-                  onClick={() => setActiveTab('expenses')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                    activeTab === 'expenses'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <LayoutDashboard className="w-4 h-4" />
-                  Runway Calculator
-                </button>
-                <button
-                  onClick={() => setActiveTab('mrr')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                    activeTab === 'mrr'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <TrendingUp className="w-4 h-4" />
-                  MRR/ARR
-                </button>
-                <button
-                  onClick={() => setActiveTab('burn')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                    activeTab === 'burn'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  <Flame className="w-4 h-4" />
-                  Burn Rate
-                </button>
-              </div>
-            </div>
 
             <div className={`${activeTab === 'expenses' ? 'block' : 'hidden'}`}>
               <ExpenseForm onAdd={addExpense} settings={activePlan.settings} />
@@ -384,11 +399,18 @@ function App() {
             </div>
 
             <div className={`${activeTab === 'mrr' ? 'block' : 'hidden'}`}>
-              <MRRCalculator settings={activePlan.settings} />
+              <MRRCalculator 
+                settings={activePlan.settings} 
+                onUpdateSettings={(newSettings) => updatePlan({ settings: { ...activePlan.settings, ...newSettings } })}
+              />
             </div>
 
             <div className={`${activeTab === 'burn' ? 'block' : 'hidden'}`}>
-              <BurnRateCalculator settings={activePlan.settings} />
+              <BurnRateCalculator 
+                settings={activePlan.settings}
+                expenses={activePlan.expenses}
+                availableFunds={availableFunds}
+              />
             </div>
 
             <div className={`lg:hidden ${activeTab === 'charts' ? 'block' : 'hidden'}`}>

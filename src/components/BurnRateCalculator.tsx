@@ -1,9 +1,11 @@
-import type { PlanSettings } from '../types';
-import { useState, useMemo } from 'react';
+import type { PlanSettings, Expense } from '../types';
+import { useState, useMemo, useEffect } from 'react';
 import { Flame, DollarSign, Calendar, AlertTriangle, TrendingDown, Clock } from 'lucide-react';
 
 interface BurnRateCalculatorProps {
   settings: PlanSettings;
+  expenses: Expense[];
+  availableFunds: number;
 }
 
 interface MonthData {
@@ -16,11 +18,40 @@ interface MonthData {
   status: 'healthy' | 'warning' | 'critical';
 }
 
-export function BurnRateCalculator({ settings }: BurnRateCalculatorProps) {
-  const [startingCash, setStartingCash] = useState<number>(500000);
-  const [monthlyRevenue, setMonthlyRevenue] = useState<number>(10000);
-  const [monthlyExpenses, setMonthlyExpenses] = useState<number>(50000);
+export function BurnRateCalculator({ settings, expenses, availableFunds }: BurnRateCalculatorProps) {
+  const [startingCash, setStartingCash] = useState<number>(0);
+  const [monthlyRevenue, setMonthlyRevenue] = useState<number>(0);
+  const [monthlyExpenses, setMonthlyExpenses] = useState<number>(0);
   const [projectionMonths, setProjectionMonths] = useState<number>(12);
+
+  // Calculate monthly expenses from existing expense data
+  const calculatedMonthlyExpenses = useMemo(() => {
+    let monthlyTotal = 0;
+    expenses.forEach(expense => {
+      if (expense.type === 'recurring') {
+        if (expense.frequency === 'monthly') {
+          monthlyTotal += expense.amount;
+        } else if (expense.frequency === 'yearly') {
+          monthlyTotal += expense.amount / 12;
+        }
+      }
+    });
+    return monthlyTotal;
+  }, [expenses]);
+
+  // Auto-update starting cash when available funds changes
+  useEffect(() => {
+    if (availableFunds > 0) {
+      setStartingCash(availableFunds);
+    }
+  }, [availableFunds]);
+
+  // Auto-update monthly expenses when expenses change (only if user hasn't manually entered)
+  useEffect(() => {
+    if (calculatedMonthlyExpenses > 0 && monthlyExpenses === 0) {
+      setMonthlyExpenses(calculatedMonthlyExpenses);
+    }
+  }, [calculatedMonthlyExpenses]);
 
   const symbol = settings?.primaryCurrency === 'USD' ? '$' : 
                  settings?.primaryCurrency === 'EUR' ? '€' : 
