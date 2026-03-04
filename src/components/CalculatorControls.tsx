@@ -149,7 +149,7 @@ export function CalculatorControls({
             Available Funds
             {settings.showSecondaryCurrency && rates && availableFunds > 0 && (
               <span className="text-xs font-normal text-gray-500">
-                ({secondarySymbol}{convert(availableFunds, settings.primaryCurrency, settings.secondaryCurrency).toLocaleString('en-US')})
+                ({secondarySymbol}{convert(availableFunds, settings.primaryCurrency, settings.secondaryCurrency).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
               </span>
             )}
           </label>
@@ -158,9 +158,13 @@ export function CalculatorControls({
               {primarySymbol}
             </span>
             <input
-              type="number"
-              value={availableFunds || ''}
-              onChange={(e) => onUpdateAvailableFunds(parseFloat(e.target.value) || 0)}
+              type="text"
+              value={availableFunds ? availableFunds.toLocaleString('en-US') : ''}
+              onChange={(e) => {
+                const rawValue = e.target.value.replace(/[^0-9.]/g, '');
+                const numValue = parseFloat(rawValue) || 0;
+                onUpdateAvailableFunds(numValue);
+              }}
               placeholder="Enter your investment amount"
               className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
