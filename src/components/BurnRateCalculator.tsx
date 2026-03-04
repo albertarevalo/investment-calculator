@@ -1,6 +1,7 @@
 import type { PlanSettings, Expense } from '../types';
 import { useState, useMemo, useEffect } from 'react';
 import { Flame, DollarSign, Calendar, AlertTriangle, TrendingDown, Clock } from 'lucide-react';
+import { getCurrencySymbol } from '../hooks/useExchangeRates';
 
 interface BurnRateCalculatorProps {
   settings: PlanSettings;
@@ -53,9 +54,7 @@ export function BurnRateCalculator({ settings, expenses, availableFunds }: BurnR
     }
   }, [calculatedMonthlyExpenses]);
 
-  const symbol = settings?.primaryCurrency === 'USD' ? '$' : 
-                 settings?.primaryCurrency === 'EUR' ? '€' : 
-                 settings?.primaryCurrency === 'GBP' ? '£' : '$';
+  const symbol = getCurrencySymbol(settings?.primaryCurrency || 'USD');
 
   const netBurn = monthlyExpenses - monthlyRevenue;
   const isProfitable = netBurn <= 0;
