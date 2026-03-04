@@ -9,7 +9,7 @@ import { CalculatorControls } from './components/CalculatorControls';
 import { Charts } from './components/Charts';
 import { PlanManager } from './components/PlanManager';
 import { CompareModal } from './components/CompareModal';
-import { LayoutDashboard, TrendingUp, Flame } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, Flame, Maximize2, Minimize2 } from 'lucide-react';
 import { MRRCalculator } from './components/MRRCalculator';
 import { BurnRateCalculator } from './components/BurnRateCalculator';
 import { useToast, ToastContainer, toast } from './hooks/useToast.tsx';
@@ -24,12 +24,33 @@ function App() {
   const [availableFunds, setAvailableFunds] = useState<number>(0);
   const [showCompare, setShowCompare] = useState(false);
   const [activeTab, setActiveTab] = useState<'expenses' | 'charts' | 'mrr' | 'burn'>('expenses');
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const { toasts, removeToast } = useToast();
   const { convert, rates } = useExchangeRates();
 
   useEffect(() => {
     saveState(state);
   }, [state]);
+
+  useEffect(() => {
+    const handler = () => {
+      setIsFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+    } catch {
+      toast.error('Fullscreen not supported');
+    }
+  }, []);
 
   const activePlan = useMemo(() => {
     return state.plans.find((p) => p.id === state.activePlanId) || state.plans[0];
@@ -245,137 +266,130 @@ function App() {
       <ToastContainer toasts={toasts} onRemove={removeToast} />
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <img src="https://nbsxlhidzrtafcgvzkvf.supabase.co/storage/v1/object/public/pawsmatch-bucket/images/logo.png" alt="PawsMatch" className="w-10 h-10 object-contain" />
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900">PawsMatch Investment Calculator</h1>
             </div>
-            <PlanManager
-              plans={state.plans}
-              activePlanId={state.activePlanId}
-              onSelectPlan={setActivePlan}
-              onCreatePlan={createPlan}
-              onDeletePlan={deletePlan}
-              onDuplicatePlan={duplicatePlan}
-              onCompare={() => setShowCompare(true)}
-              onRenamePlan={renamePlan}
-              onExportPlan={exportPlan}
-              onImportPlan={() => {
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = '.json,application/json';
-                input.onchange = (e) => {
-                  const file = (e.target as HTMLInputElement).files?.[0];
-                  if (!file) return;
-                  if (file.size > 5 * 1024 * 1024) {
-                    toast.error('File too large. Maximum size is 5MB.');
-                    return;
-                  }
-                  if (!file.name.toLowerCase().endsWith('.json')) {
-                    toast.error('Invalid file type. Please select a JSON file.');
-                    return;
-                  }
-                  const reader = new FileReader();
-                  reader.onerror = () => {
-                    toast.error('Failed to read file. Please try again.');
-                  };
-                  reader.onload = (event) => {
-                    try {
-                      const content = event.target?.result as string;
-                      if (!content || content.trim() === '') {
-                        toast.error('File is empty.');
-                        return;
-                      }
-                      let importedPlan: unknown;
+            <div className="flex items-center gap-3 ml-auto">
+              <button
+                onClick={toggleFullscreen}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200 text-sm font-medium"
+                title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+              >
+                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />} {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+              </button>
+              <PlanManager
+                plans={state.plans}
+                activePlanId={state.activePlanId}
+                onSelectPlan={setActivePlan}
+                onCreatePlan={createPlan}
+                onDeletePlan={deletePlan}
+                onDuplicatePlan={duplicatePlan}
+                onCompare={() => setShowCompare(true)}
+                onRenamePlan={renamePlan}
+                onExportPlan={exportPlan}
+                onImportPlan={() => {
+                  const input = document.createElement('input');
+                  input.type = 'file';
+                  input.accept = '.json,application/json';
+                  input.onchange = (e) => {
+                    const file = (e.target as HTMLInputElement).files?.[0];
+                    if (!file) return;
+                    if (file.size > 5 * 1024 * 1024) {
+                      toast.error('File too large. Maximum size is 5MB.');
+                      return;
+                    }
+                    if (!file.name.toLowerCase().endsWith('.json')) {
+                      toast.error('Invalid file type. Please select a JSON file.');
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onerror = () => {
+                      toast.error('Failed to read file. Please try again.');
+                    };
+                    reader.onload = (event) => {
                       try {
-                        importedPlan = JSON.parse(content);
-                      } catch {
-                        toast.error('Invalid JSON format. Please check the file.');
-                        return;
-                      }
-                      if (!importedPlan || typeof importedPlan !== 'object') {
-                        toast.error('Invalid plan file format.');
-                        return;
-                      }
-                      const plan = importedPlan as Record<string, unknown>;
-                      if (!plan.name || typeof plan.name !== 'string' || plan.name.trim() === '') {
-                        toast.error('Invalid plan: missing or empty name.');
-                        return;
-                      }
-                      if (!plan.expenses || !Array.isArray(plan.expenses)) {
-                        toast.error('Invalid plan: expenses must be an array.');
-                        return;
-                      }
-                      if (!plan.settings || typeof plan.settings !== 'object') {
-                        toast.error('Invalid plan: missing settings.');
-                        return;
-                      }
-                      const settings = plan.settings as Record<string, unknown>;
-                      const requiredSettings = ['targetRunwayMonths', 'bufferMonths', 'bufferPercentage', 'primaryCurrency'];
-                      for (const key of requiredSettings) {
-                        if (!(key in settings)) {
-                          toast.error(`Invalid plan: missing required setting "${key}".`);
+                        const content = event.target?.result as string;
+                        if (!content || content.trim() === '') {
+                          toast.error('File is empty.');
                           return;
                         }
+                        let importedPlan: unknown;
+                        try {
+                          importedPlan = JSON.parse(content);
+                        } catch {
+                          toast.error('Invalid JSON format. Please check the file.');
+                          return;
+                        }
+                        if (!importedPlan || typeof importedPlan !== 'object') {
+                          toast.error('Invalid plan file format.');
+                          return;
+                        }
+                        const plan = importedPlan as Partial<Plan>;
+                        const rawSettings = (plan.settings || {}) as Record<string, unknown>;
+                        if (!plan.name || !Array.isArray(plan.expenses)) {
+                          toast.error('Plan file missing required fields.');
+                          return;
+                        }
+                        const existingPlan = state.plans.find(p => 
+                          p.name.toLowerCase() === plan.name!.toString().toLowerCase()
+                        );
+                        let finalName = plan.name as string;
+                        if (existingPlan) {
+                          const timestamp = new Date().toLocaleDateString();
+                          finalName = `${plan.name} (Imported ${timestamp})`;
+                          toast.warning(`Plan renamed to "${finalName}" to avoid duplicates.`);
+                        }
+                        const validatedPlan: Plan = {
+                          id: generateId(),
+                          name: finalName.trim(),
+                          createdAt: new Date().toISOString(),
+                          expenses: (plan.expenses as unknown[]).map((e: any) => ({
+                            id: typeof e.id === 'string' ? e.id : generateId(),
+                            name: typeof e.name === 'string' ? e.name : 'Unnamed Expense',
+                            amount: typeof e.amount === 'number' ? e.amount : 0,
+                            type: e.type === 'recurring' ? 'recurring' : 'one-time',
+                            frequency: e.frequency === 'yearly' ? 'yearly' : 'monthly',
+                          })),
+                          settings: {
+                            targetRunwayMonths: Number((rawSettings as any).targetRunwayMonths) || 12,
+                            bufferMonths: Number((rawSettings as any).bufferMonths) || 3,
+                            bufferPercentage: Number((rawSettings as any).bufferPercentage) || 20,
+                            primaryCurrency: String((rawSettings as any).primaryCurrency || 'USD'),
+                            secondaryCurrency: String((rawSettings as any).secondaryCurrency || 'EUR'),
+                            showSecondaryCurrency: Boolean((rawSettings as any).showSecondaryCurrency),
+                            mrrSettings: (rawSettings as any).mrrSettings && typeof (rawSettings as any).mrrSettings === 'object'
+                              ? normalizeMrrSettings((rawSettings as any).mrrSettings)
+                              : createDefaultMrrSettings(),
+                            burnRateSettings: (rawSettings as any).burnRateSettings && typeof (rawSettings as any).burnRateSettings === 'object'
+                              ? normalizeBurnRateSettings((rawSettings as any).burnRateSettings)
+                              : createDefaultBurnRateSettings(),
+                          },
+                        };
+                        setState((prev) => ({
+                          ...prev,
+                          plans: [...prev.plans, validatedPlan],
+                          activePlanId: validatedPlan.id,
+                        }));
+                        if (!existingPlan) {
+                          toast.success(`Plan "${finalName}" imported successfully!`);
+                        }
+                      } catch {
+                        toast.error('Unexpected error importing plan. Please try again.');
                       }
-                      const existingPlan = state.plans.find(p => 
-                        p.name.toLowerCase() === plan.name!.toString().toLowerCase()
-                      );
-                      let finalName = plan.name as string;
-                      if (existingPlan) {
-                        const timestamp = new Date().toLocaleDateString();
-                        finalName = `${plan.name} (Imported ${timestamp})`;
-                        toast.warning(`Plan renamed to "${finalName}" to avoid duplicates.`);
-                      }
-                      const validatedPlan: Plan = {
-                        id: generateId(),
-                        name: finalName.trim(),
-                        createdAt: new Date().toISOString(),
-                        expenses: (plan.expenses as Array<Record<string, unknown>>).map(e => ({
-                          id: typeof e.id === 'string' ? e.id : generateId(),
-                          name: typeof e.name === 'string' ? e.name : 'Unnamed Expense',
-                          amount: typeof e.amount === 'number' ? e.amount : 0,
-                          type: e.type === 'recurring' ? 'recurring' : 'one-time',
-                          frequency: e.frequency === 'yearly' ? 'yearly' : 'monthly',
-                        })),
-                        settings: {
-                          targetRunwayMonths: Number(settings.targetRunwayMonths) || 12,
-                          bufferMonths: Number(settings.bufferMonths) || 3,
-                          bufferPercentage: Number(settings.bufferPercentage) || 20,
-                          primaryCurrency: String(settings.primaryCurrency || 'USD'),
-                          secondaryCurrency: String(settings.secondaryCurrency || 'EUR'),
-                          showSecondaryCurrency: Boolean(settings.showSecondaryCurrency),
-                          mrrSettings: settings.mrrSettings && typeof settings.mrrSettings === 'object'
-                            ? normalizeMrrSettings(settings.mrrSettings)
-                            : createDefaultMrrSettings(),
-                          burnRateSettings: settings.burnRateSettings && typeof settings.burnRateSettings === 'object'
-                            ? normalizeBurnRateSettings(settings.burnRateSettings)
-                            : createDefaultBurnRateSettings(),
-                        },
-                      };
-                      setState((prev) => ({
-                        ...prev,
-                        plans: [...prev.plans, validatedPlan],
-                        activePlanId: validatedPlan.id,
-                      }));
-                      if (!existingPlan) {
-                        toast.success(`Plan "${finalName}" imported successfully!`);
-                      }
-                    } catch {
-                      toast.error('Unexpected error importing plan. Please try again.');
-                    }
+                    };
+                    reader.readAsText(file);
                   };
-                  reader.readAsText(file);
-                };
-                input.click();
-              }}
-            />
+                  input.click();
+                }}
+              />
+            </div>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Main Navigation Tabs */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div className="flex flex-wrap gap-2 bg-white p-2 rounded-xl shadow-sm border border-gray-100">
             <button
@@ -437,7 +451,7 @@ function App() {
           {/* Main Content Column */}
           <div className="space-y-6">
             <div className={`${activeTab === 'expenses' ? 'block' : 'hidden'}`}>
-              <SummaryCards results={results} settings={activePlan.settings} />
+              <SummaryCards results={results!} settings={activePlan.settings} />
               <div className="mt-6">
                 <CalculatorControls
                   settings={activePlan.settings}
@@ -483,7 +497,7 @@ function App() {
           <div className={`${activeTab === 'expenses' ? 'block' : 'hidden'}`}>
             <Charts
               expenses={activePlan.expenses}
-              results={results}
+              results={results!}
               settings={activePlan.settings}
             />
           </div>

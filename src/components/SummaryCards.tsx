@@ -1,5 +1,5 @@
 import type { CalculationResult, PlanSettings } from '../types';
-import { formatCurrency, formatNumber } from '../utils/calculator';
+import { formatCurrency } from '../utils/calculator';
 import { useExchangeRates, getCurrencySymbol } from '../hooks/useExchangeRates';
 import { Wallet, TrendingDown, Calendar, Shield } from 'lucide-react';
 
@@ -12,6 +12,15 @@ export function SummaryCards({ results, settings }: SummaryCardsProps) {
   const { convert } = useExchangeRates(settings?.primaryCurrency || 'USD');
   const primarySymbol = getCurrencySymbol(settings?.primaryCurrency || 'USD');
   const secondarySymbol = getCurrencySymbol(settings?.secondaryCurrency || 'EUR');
+  const formatRunway = (months: number) => {
+    if (!Number.isFinite(months)) return '∞';
+    const yrs = Math.floor(months / 12);
+    const mos = Math.floor(months % 12);
+    if (yrs <= 0) return `${mos} mo${mos === 1 ? '' : 's'}`;
+    return mos > 0
+      ? `${yrs} yr${yrs > 1 ? 's' : ''} ${mos} mo${mos === 1 ? '' : 's'}`
+      : `${yrs} yr${yrs > 1 ? 's' : ''}`;
+  };
   const cards = [
     {
       title: 'Total Needed',
@@ -39,7 +48,7 @@ export function SummaryCards({ results, settings }: SummaryCardsProps) {
     },
     {
       title: 'Runway',
-      value: `${formatNumber(results.runwayMonths)} months`,
+      value: formatRunway(results.runwayMonths),
       secondaryValue: null,
       subtitle: 'With current funds',
       icon: Calendar,
