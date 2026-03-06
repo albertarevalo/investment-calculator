@@ -2,7 +2,7 @@ import type { Expense, PlanSettings } from '../types';
 import { formatCurrency } from '../utils/calculator';
 import { useExchangeRates, getCurrencySymbol } from '../hooks/useExchangeRates';
 import { Trash2, Edit2, Check, X, Repeat, CircleDollarSign } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
 interface ExpenseListProps {
   expenses: Expense[];
@@ -18,6 +18,17 @@ export function ExpenseList({ expenses, onUpdate, onDelete, settings }: ExpenseL
   const primarySymbol = getCurrencySymbol(settings.primaryCurrency);
   const secondarySymbol = getCurrencySymbol(settings.secondaryCurrency);
 
+  const monthOptions = useMemo(() => {
+    const now = new Date();
+    const opts: { label: string; value: number }[] = [];
+    for (let i = 0; i < 25; i++) {
+      const d = new Date(now);
+      d.setMonth(now.getMonth() + i);
+      opts.push({ label: d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }), value: i });
+    }
+    return opts;
+  }, []);
+
   const oneTimeExpenses = expenses.filter((e) => e.type === 'one-time');
   const recurringExpenses = expenses.filter((e) => e.type === 'recurring');
 
@@ -27,7 +38,10 @@ export function ExpenseList({ expenses, onUpdate, onDelete, settings }: ExpenseL
   };
 
   const saveEdit = (id: string) => {
-    onUpdate(id, editForm);
+    const normalizedStart = typeof editForm.startMonth === 'number'
+      ? editForm.startMonth
+      : Math.max(0, parseInt(String(editForm.startMonth ?? '0'), 10) || 0);
+    onUpdate(id, { ...editForm, startMonth: normalizedStart });
     setEditingId(null);
     setEditForm({});
   };
@@ -59,6 +73,17 @@ export function ExpenseList({ expenses, onUpdate, onDelete, settings }: ExpenseL
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Amount"
               />
+              <select
+                value={typeof editForm.startMonth === 'number' ? editForm.startMonth : 0}
+                onChange={(e) => setEditForm({ ...editForm, startMonth: parseInt(e.target.value, 10) })}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {monthOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
               {expense.type === 'recurring' && (
                 <select
                   value={editForm.frequency || 'monthly'}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Expense, PlanSettings } from '../types';
 import { getCurrencySymbol } from '../hooks/useExchangeRates';
 import { Plus, CircleDollarSign, Repeat } from 'lucide-react';
@@ -14,8 +14,23 @@ export function ExpenseForm({ onAdd, settings }: ExpenseFormProps) {
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [frequency, setFrequency] = useState<'monthly' | 'yearly'>('monthly');
+  const [startMonth, setStartMonth] = useState('0');
 
   const primarySymbol = getCurrencySymbol(settings.primaryCurrency);
+
+  const monthOptions = useMemo(() => {
+    const now = new Date();
+    const opts: { label: string; value: number }[] = [];
+    for (let i = 0; i < 25; i++) {
+      const d = new Date(now);
+      d.setMonth(now.getMonth() + i);
+      opts.push({
+        label: d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        value: i,
+      });
+    }
+    return opts;
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,6 +40,7 @@ export function ExpenseForm({ onAdd, settings }: ExpenseFormProps) {
       name: name.trim(),
       amount: parseFloat(amount),
       type,
+      startMonth: Math.max(0, parseInt(startMonth || '0', 10) || 0),
       frequency: type === 'recurring' ? frequency : undefined,
     });
 
@@ -32,6 +48,7 @@ export function ExpenseForm({ onAdd, settings }: ExpenseFormProps) {
     setAmount('');
     setType('one-time');
     setFrequency('monthly');
+    setStartMonth('0');
     setIsOpen(false);
   };
 
@@ -102,6 +119,17 @@ export function ExpenseForm({ onAdd, settings }: ExpenseFormProps) {
               required
             />
           </div>
+          <select
+            value={startMonth}
+            onChange={(e) => setStartMonth(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {monthOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
           {type === 'recurring' && (
             <select
               value={frequency}

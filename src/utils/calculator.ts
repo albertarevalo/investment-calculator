@@ -21,16 +21,55 @@ export const calculateResults = (
     }
   });
 
-  const monthlyBurn = monthlyRecurring + yearlyRecurring / 12;
-  const totalNeeded = oneTimeTotal + monthlyBurn * settings.targetRunwayMonths;
-  
+  const monthlyBurnAt = (month: number) => {
+    return expenses.reduce((total, expense) => {
+      const startMonth = expense.startMonth ?? 0;
+      if (month < startMonth) return total;
+      if (expense.type === 'recurring') {
+        const monthlyAmount = expense.frequency === 'yearly' ? expense.amount / 12 : expense.amount;
+        return total + monthlyAmount;
+      }
+      return total;
+    }, 0);
+  };
+
+  const oneTimeAt = (month: number) => {
+    return expenses.reduce((total, expense) => {
+      const startMonth = expense.startMonth ?? 0;
+      if (expense.type === 'one-time' && startMonth === month) {
+        return total + expense.amount;
+      }
+      return total;
+    }, 0);
+  };
+
+  const monthlyBurn = monthlyBurnAt(0);
+
+  let totalNeeded = 0;
+  for (let month = 0; month < settings.targetRunwayMonths; month++) {
+    totalNeeded += monthlyBurnAt(month) + oneTimeAt(month);
+  }
+
   const bufferAmount = totalNeeded * (settings.bufferPercentage / 100);
   const bufferMonthsAmount = monthlyBurn * settings.bufferMonths;
   const totalWithBuffer = totalNeeded + bufferAmount + bufferMonthsAmount;
 
-  const runwayMonths = monthlyBurn > 0 
-    ? (availableFunds - oneTimeTotal) / monthlyBurn 
-    : 0;
+  let runwayMonths: number = 0;
+  let remaining = availableFunds;
+  const maxMonths = 600; // safety cap
+  for (let month = 0; month < maxMonths; month++) {
+    const burnThisMonth = monthlyBurnAt(month) + oneTimeAt(month);
+    if (burnThisMonth <= 0) {
+      runwayMonths = Infinity;
+      break;
+    }
+    remaining -= burnThisMonth;
+    if (remaining < 0) {
+      runwayMonths = month;
+      break;
+    }
+    runwayMonths = month + 1;
+  }
 
   return {
     oneTimeTotal,

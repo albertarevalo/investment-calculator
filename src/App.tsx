@@ -25,6 +25,7 @@ function App() {
   const [showCompare, setShowCompare] = useState(false);
   const [activeTab, setActiveTab] = useState<'expenses' | 'charts' | 'mrr' | 'burn'>('expenses');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showVisualizations, setShowVisualizations] = useState(false);
   const { toasts, removeToast } = useToast();
   const { convert, rates } = useExchangeRates();
 
@@ -456,6 +457,24 @@ function App() {
             <div className={`${activeTab === 'expenses' ? 'block' : 'hidden'}`}>
               <SummaryCards results={results!} settings={activePlan.settings} />
               <div className="mt-6">
+                <button
+                  type="button"
+                  onClick={() => setShowVisualizations((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-2 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 text-sm font-semibold text-gray-700"
+                  aria-expanded={showVisualizations}
+                >
+                  <span>Visualizations</span>
+                  <span className="text-gray-500 text-xs">{showVisualizations ? 'Collapse' : 'Expand'}</span>
+                </button>
+                <div className={`${showVisualizations ? 'mt-3' : 'hidden'}`}>
+                  <Charts
+                    expenses={activePlan.expenses}
+                    results={results!}
+                    settings={activePlan.settings}
+                  />
+                </div>
+              </div>
+              <div className="mt-6">
                 <CalculatorControls
                   settings={activePlan.settings}
                   onUpdateSettings={(newSettings) => updatePlan({ settings: newSettings })}
@@ -496,14 +515,6 @@ function App() {
             </div>
           </div>
 
-          {/* Visualizations Section - Full Width */}
-          <div className={`${activeTab === 'expenses' ? 'block' : 'hidden'}`}>
-            <Charts
-              expenses={activePlan.expenses}
-              results={results!}
-              settings={activePlan.settings}
-            />
-          </div>
         </div>
       </main>
 

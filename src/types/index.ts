@@ -7,6 +7,7 @@ export interface Expense {
   amount: number;
   type: ExpenseType;
   frequency?: RecurringFrequency;
+  startMonth?: number; // month offset (0 = current month)
   currency?: string; // Currency this expense was created in
 }
 

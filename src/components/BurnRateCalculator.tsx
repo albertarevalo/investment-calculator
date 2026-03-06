@@ -50,19 +50,29 @@ export function BurnRateCalculator({
   }, []);
 
   // Calculate monthly expenses from existing expense data
-  const calculatedMonthlyExpenses = useMemo(() => {
-    let monthlyTotal = 0;
-    expenses.forEach(expense => {
+  const monthlyExpenseAt = useCallback((monthIndex: number) => {
+    return expenses.reduce((sum, expense) => {
+      const startsAt = typeof expense.startMonth === 'number' ? expense.startMonth : 0;
+      if (monthIndex < startsAt) return sum;
       if (expense.type === 'recurring') {
-        if (expense.frequency === 'monthly') {
-          monthlyTotal += expense.amount;
-        } else if (expense.frequency === 'yearly') {
-          monthlyTotal += expense.amount / 12;
-        }
+        const monthlyAmount = expense.frequency === 'yearly' ? expense.amount / 12 : expense.amount;
+        return sum + monthlyAmount;
       }
-    });
-    return monthlyTotal;
+      return sum;
+    }, 0);
   }, [expenses]);
+
+  const oneTimeExpenseAt = useCallback((monthIndex: number) => {
+    return expenses.reduce((sum, expense) => {
+      const startsAt = typeof expense.startMonth === 'number' ? expense.startMonth : 0;
+      if (expense.type === 'one-time' && monthIndex === startsAt) {
+        return sum + expense.amount;
+      }
+      return sum;
+    }, 0);
+  }, [expenses]);
+
+  const calculatedMonthlyExpenses = useMemo(() => monthlyExpenseAt(0), [monthlyExpenseAt]);
 
   const monthlyRevenueAt = useCallback((monthIndex: number) => {
     return burnSettings.revenueStreams.reduce((sum, stream) => {
@@ -83,11 +93,6 @@ export function BurnRateCalculator({
       onUpdateBurnSettings((prev) => ({ ...prev, startingCash: availableFunds }));
     }
   }, [availableFunds, burnSettings.startingCash, onUpdateBurnSettings]);
-
-  const handleStartingCashChange = (value: string) => {
-    const parsed = parseMoneyInput(value);
-    onUpdateBurnSettings((prev) => ({ ...prev, startingCash: parsed }));
-  };
 
   const handleProjectionChange = (value: number) => {
     const clamped = Math.min(60, Math.max(1, value));
@@ -153,7 +158,8 @@ export function BurnRateCalculator({
       date.setMonth(date.getMonth() + month);
 
       const monthlyRevenue = monthlyRevenueAt(month);
-      const thisMonthNetBurn = calculatedMonthlyExpenses - monthlyRevenue;
+      const expenseThisMonth = monthlyExpenseAt(month) + oneTimeExpenseAt(month);
+      const thisMonthNetBurn = expenseThisMonth - monthlyRevenue;
       const runwayMonths = thisMonthNetBurn <= 0 ? Infinity : currentCash / thisMonthNetBurn;
       let status: 'healthy' | 'warning' | 'critical';
       
@@ -185,7 +191,7 @@ export function BurnRateCalculator({
     }
 
     return data;
-  }, [burnSettings.startingCash, burnSettings.projectionMonths, calculatedMonthlyExpenses, monthlyRevenueAt]);
+  }, [burnSettings.startingCash, burnSettings.projectionMonths, calculatedMonthlyExpenses, monthlyExpenseAt, oneTimeExpenseAt, monthlyRevenueAt]);
 
   const formatCurrency = (value: number) => {
     if (value === Infinity) return '∞';
@@ -242,14 +248,10 @@ export function BurnRateCalculator({
               <DollarSign className="w-4 h-4 inline mr-1" />
               Starting Cash
             </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{symbol}</span>
-              <input
-                type="text"
-                value={formatInputValue(burnSettings.startingCash)}
-                onChange={(e) => handleStartingCashChange(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+            <div className="p-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-700">
+              {symbol}
+              {formatInputValue(burnSettings.startingCash)}
+              <p className="text-xs text-gray-500 mt-1">Auto-synced from Available Funds</p>
             </div>
           </div>
 
@@ -305,50 +307,64 @@ export function BurnRateCalculator({
           </div>
 
           <form onSubmit={handleAddStream} className="grid grid-cols-1 md:grid-cols-[2fr,1fr,auto,auto,auto] gap-3 p-4 border border-gray-200 rounded-xl bg-gray-50">
-            <input
-              type="text"
-              value={newStreamName}
-              onChange={(e) => setNewStreamName(e.target.value)}
-              placeholder="e.g., Ads Revenue"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{symbol}</span>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
               <input
                 type="text"
-                value={newStreamAmount}
-                onChange={(e) => setNewStreamAmount(sanitizeMoneyInput(e.target.value))}
-                placeholder="Amount"
-                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={newStreamName}
+                onChange={(e) => setNewStreamName(e.target.value)}
+                placeholder="e.g., Ads Revenue"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
-            <select
-              value={newStreamStartMonth}
-              onChange={(e) => setNewStreamStartMonth(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              title="Start month"
-            >
-              {monthOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-            <select
-              value={newStreamFrequency}
-              onChange={(e) => setNewStreamFrequency(e.target.value as 'monthly' | 'yearly')}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
-            </select>
-            <button
-              type="submit"
-              className="inline-flex items-center gap-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              <Plus className="w-4 h-4" />
-              Add
-            </button>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Amount</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{symbol}</span>
+                <input
+                  type="text"
+                  value={newStreamAmount}
+                  onChange={(e) => setNewStreamAmount(sanitizeMoneyInput(e.target.value))}
+                  placeholder="Amount"
+                  className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Start Month</label>
+              <select
+                value={newStreamStartMonth}
+                onChange={(e) => setNewStreamStartMonth(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                title="Start month"
+              >
+                {monthOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Frequency</label>
+              <select
+                value={newStreamFrequency}
+                onChange={(e) => setNewStreamFrequency(e.target.value as 'monthly' | 'yearly')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </div>
+            <div className="flex items-end">
+              <button
+                type="submit"
+                className="inline-flex items-center gap-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 w-full justify-center"
+              >
+                <Plus className="w-4 h-4" />
+                Add
+              </button>
+            </div>
           </form>
 
           {burnSettings.revenueStreams.length > 0 ? (

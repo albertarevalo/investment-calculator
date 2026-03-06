@@ -33,6 +33,11 @@ export function CompareModal({ plans, settings, onClose }: CompareModalProps) {
     'Monthly Burn': results.monthlyBurn,
   }));
 
+  const runwayData = planResults.map(({ plan, results }) => ({
+    name: plan.name,
+    runway: results.runwayMonths,
+  }));
+
   const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
   const sortedPlanResults = useMemo(() => {
@@ -138,6 +143,23 @@ export function CompareModal({ plans, settings, onClose }: CompareModalProps) {
                       <Legend />
                       <Bar dataKey="Total Needed" fill={COLORS[0]} radius={[4, 4, 0, 0]} />
                       <Bar dataKey="With Buffer" fill={COLORS[1]} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Runway Comparison */}
+              <div className="bg-gray-50 rounded-xl p-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-4 text-center">Runway Comparison (months)</h3>
+                <div className="h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={runwayData} layout="vertical" margin={{ top: 10, right: 20, left: 40, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis type="number" tick={{ fontSize: 12 }} domain={[0, 'dataMax + 6']} />
+                      <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={140} />
+                      <Tooltip formatter={(value: number) => [`${value.toFixed(1)} mo`, 'Runway']} />
+                      <Legend />
+                      <Bar dataKey="runway" name="Runway" fill="#8B5CF6" radius={[4, 4, 4, 4]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
