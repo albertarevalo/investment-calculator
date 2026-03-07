@@ -19,6 +19,12 @@ type PlanUpdates = Partial<Omit<Plan, 'settings'>> & {
   settings?: Partial<Plan['settings']>;
 };
 
+type BeforeInstallPromptEvent = Event & {
+  readonly platforms?: string[];
+  readonly userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+  prompt: () => Promise<void>;
+};
+
 function App() {
   const [state, setState] = useState<AppState>(loadState);
   const [availableFunds, setAvailableFunds] = useState<number>(0);
@@ -28,6 +34,7 @@ function App() {
   const [showVisualizations, setShowVisualizations] = useState(false);
   const [showIntroModal, setShowIntroModal] = useState(false);
   const [showMobilePlanSheet, setShowMobilePlanSheet] = useState(false);
+  const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const { toasts, removeToast } = useToast();
   const { convert, rates } = useExchangeRates();
   const availableFundsInputRef = useRef<HTMLInputElement>(null);
@@ -50,6 +57,15 @@ function App() {
     };
     document.addEventListener('fullscreenchange', handler);
     return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPromptEvent(event as BeforeInstallPromptEvent);
+    };
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
   }, []);
 
   const toggleFullscreen = useCallback(async () => {
@@ -78,6 +94,20 @@ function App() {
   const focusAvailableFunds = useCallback(() => {
     availableFundsInputRef.current?.focus();
   }, []);
+
+  const handleInstallApp = useCallback(async () => {
+    if (installPromptEvent) {
+      try {
+        await installPromptEvent.prompt();
+        setInstallPromptEvent(null);
+      } catch {
+        setInstallPromptEvent(null);
+      }
+    } else {
+      alert('To install, use your browser menu and choose "Install app" or "Add to Home Screen".');
+    }
+    setShowMobilePlanSheet(false);
+  }, [installPromptEvent]);
 
   useEffect(() => {
     if (activeTab === 'mrr' && !showMrrTab) {
@@ -676,23 +706,20 @@ function App() {
                   Import plan
                 </button>
               </div>
-              <div className="border-t border-gray-100 pt-2 space-y-2">
-                <button
-                  onClick={() => {
-                    alert('To install: tap Share, then "Add to Home Screen".');
-                    setShowMobilePlanSheet(false);
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 text-sm text-gray-800"
-                >
-                  Add to Home Screen
-                </button>
-              </div>
               <button
                 onClick={() => { createPlan('New Plan'); setShowMobilePlanSheet(false); }}
                 className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 text-sm text-gray-800"
               >
                 New plan
               </button>
+              <div className="border-t border-gray-100 pt-2">
+                <button
+                  onClick={handleInstallApp}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 text-sm text-gray-800"
+                >
+                  Install app
+                </button>
+              </div>
             </div>
           </div>
         </div>

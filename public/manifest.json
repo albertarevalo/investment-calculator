@@ -1,0 +1,22 @@
+{
+  "name": "Startup Runway Simulator",
+  "short_name": "Runway Sim",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "https://nbsxlhidzrtafcgvzkvf.supabase.co/storage/v1/object/public/pawsmatch-bucket/images/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "https://nbsxlhidzrtafcgvzkvf.supabase.co/storage/v1/object/public/pawsmatch-bucket/images/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
