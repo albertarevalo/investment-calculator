@@ -1,12 +1,14 @@
 import type { PlanSettings } from '../types';
 import { useExchangeRates, CURRENCIES, getCurrencySymbol } from '../hooks/useExchangeRates';
 import { Settings2, DollarSign, Clock, Percent, Shield, Globe, ArrowLeftRight } from 'lucide-react';
+import type { RefObject } from 'react';
 
 interface CalculatorControlsProps {
   settings: PlanSettings;
   onUpdateSettings: (settings: PlanSettings) => void;
   availableFunds: number;
   onUpdateAvailableFunds: (value: number) => void;
+  availableFundsInputRef?: RefObject<HTMLInputElement>;
 }
 
 export function CalculatorControls({
@@ -14,6 +16,7 @@ export function CalculatorControls({
   onUpdateSettings,
   availableFunds,
   onUpdateAvailableFunds,
+  availableFundsInputRef,
 }: CalculatorControlsProps) {
   const { rates, loading, error, convert } = useExchangeRates(settings.primaryCurrency);
 
@@ -138,6 +141,7 @@ export function CalculatorControls({
               }}
               placeholder="Enter your investment amount"
               className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              ref={availableFundsInputRef}
             />
           </div>
         </div>

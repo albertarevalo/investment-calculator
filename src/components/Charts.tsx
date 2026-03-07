@@ -9,13 +9,15 @@ interface ChartsProps {
   expenses: Expense[];
   results: CalculationResult;
   settings: PlanSettings;
+  onFocusAvailableFunds: () => void;
 }
 
 const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316'];
 
-export function Charts({ expenses, results, settings }: ChartsProps) {
+export function Charts({ expenses, results, settings, onFocusAvailableFunds }: ChartsProps) {
   const [activeChart, setActiveChart] = useState<'breakdown' | 'timeline' | 'cashflow'>('breakdown');
   const primarySymbol = getCurrencySymbol(settings.primaryCurrency);
+  const hasFunds = results.availableFunds > 0;
 
   const expenseData = useMemo(() => expenses.map((e) => ({
     name: e.name,
@@ -263,26 +265,39 @@ export function Charts({ expenses, results, settings }: ChartsProps) {
             <TrendingUp className="w-4 h-4" />
             Monthly Cashflow (Revenue vs Expenses)
           </h3>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={cashflowData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatCurrency(v, primarySymbol)} />
-                <Tooltip
-                  formatter={(value: number, _name: string, props) => {
-                    const dataKey = (props && 'dataKey' in props) ? (props as any).dataKey as string : _name;
-                    const label = dataKey === 'revenue' ? 'Revenue' : dataKey === 'expenses' ? 'Expenses' : 'Net';
-                    return [formatCurrency(value, primarySymbol), label];
-                  }}
-                />
-                <Legend />
-                <Bar dataKey="revenue" name="Revenue" stackId="cash" fill="#10B981" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expenses" name="Expenses" stackId="cash" fill="#EF4444" radius={[4, 4, 0, 0]} />
-                <Line type="monotone" dataKey="net" name="Net" stroke="#3B82F6" strokeWidth={2} dot={false} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
+          {hasFunds ? (
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={cashflowData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatCurrency(v, primarySymbol)} />
+                  <Tooltip
+                    formatter={(value: number, _name: string, props) => {
+                      const dataKey = (props && 'dataKey' in props) ? (props as any).dataKey as string : _name;
+                      const label = dataKey === 'revenue' ? 'Revenue' : dataKey === 'expenses' ? 'Expenses' : 'Net';
+                      return [formatCurrency(value, primarySymbol), label];
+                    }}
+                  />
+                  <Legend />
+                  <Bar dataKey="revenue" name="Revenue" stackId="cash" fill="#10B981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="expenses" name="Expenses" stackId="cash" fill="#EF4444" radius={[4, 4, 0, 0]} />
+                  <Line type="monotone" dataKey="net" name="Net" stroke="#3B82F6" strokeWidth={2} dot={false} />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="p-4 border border-dashed border-blue-200 rounded-lg bg-blue-50 text-sm text-blue-900 flex flex-col gap-3">
+              <div className="font-semibold">Add Available Funds to see cashflow.</div>
+              <button
+                type="button"
+                onClick={onFocusAvailableFunds}
+                className="inline-flex items-center justify-center px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold shadow hover:bg-blue-700"
+              >
+                Add now
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -292,36 +307,49 @@ export function Charts({ expenses, results, settings }: ChartsProps) {
             <TrendingUp className="w-4 h-4" />
             Projected Balance (24 months)
           </h3>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                key={`timeline-${results.availableFunds}-${timelineData.length}-${timelineData[timelineData.length - 1]?.balance ?? 0}`}
-                data={timelineData}
-                margin={{ left: -10, right: 12 }}
+          {hasFunds ? (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  key={`timeline-${results.availableFunds}-${timelineData.length}-${timelineData[timelineData.length - 1]?.balance ?? 0}`}
+                  data={timelineData}
+                  margin={{ left: -10, right: 12 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                  <YAxis
+                    tick={{ fontSize: 12 }}
+                    tickFormatter={(value) => `${primarySymbol}${(value / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip
+                    formatter={(value: number, _name: string, props) => {
+                      const dataKey = (props && 'dataKey' in props) ? (props as any).dataKey as string : _name;
+                      const label = dataKey === 'balance' ? 'Balance' : dataKey === 'expenses' ? 'Expenses' : 'Revenue';
+                      return [formatCurrency(value, primarySymbol), label];
+                    }}
+                  />
+                  <Legend />
+                  {thresholdMarkers[12] && <ReferenceLine x={thresholdMarkers[12]} stroke="#6B7280" strokeDasharray="4 4" label={{ value: '12 mo', position: 'top', fill: '#6B7280', fontSize: 10 }} />}
+                  {thresholdMarkers[6] && <ReferenceLine x={thresholdMarkers[6]} stroke="#F59E0B" strokeDasharray="4 4" label={{ value: '6 mo', position: 'top', fill: '#F59E0B', fontSize: 10 }} />}
+                  {thresholdMarkers[3] && <ReferenceLine x={thresholdMarkers[3]} stroke="#EF4444" strokeDasharray="4 4" label={{ value: '3 mo', position: 'top', fill: '#EF4444', fontSize: 10 }} />}
+                  <Line type="monotone" dataKey="balance" stroke="#3B82F6" strokeWidth={3} dot={false} name="Balance" isAnimationActive animationDuration={700} />
+                  <Line type="monotone" dataKey="expenses" stroke="#EF4444" strokeWidth={2} dot={{ r: 2 }} name="Expenses" isAnimationActive animationDuration={700} />
+                  <Line type="monotone" dataKey="revenue" stroke="#10B981" strokeWidth={2} dot={{ r: 2 }} name="Revenue" isAnimationActive animationDuration={700} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="p-4 border border-dashed border-blue-200 rounded-lg bg-blue-50 text-sm text-blue-900 flex flex-col gap-3">
+              <div className="font-semibold">Add Available Funds to project your balance timeline.</div>
+              <button
+                type="button"
+                onClick={onFocusAvailableFunds}
+                className="inline-flex items-center justify-center px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold shadow hover:bg-blue-700"
               >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis
-                  tick={{ fontSize: 12 }}
-                  tickFormatter={(value) => `${primarySymbol}${(value / 1000).toFixed(0)}k`}
-                />
-                <Tooltip
-                  formatter={(value: number, _name: string, props) => {
-                    const dataKey = (props && 'dataKey' in props) ? (props as any).dataKey as string : _name;
-                    const label = dataKey === 'balance' ? 'Balance' : dataKey === 'expenses' ? 'Expenses' : 'Revenue';
-                    return [formatCurrency(value, primarySymbol), label];
-                  }}
-                />
-                <Legend />
-                {thresholdMarkers[12] && <ReferenceLine x={thresholdMarkers[12]} stroke="#6B7280" strokeDasharray="4 4" label={{ value: '12 mo', position: 'top', fill: '#6B7280', fontSize: 10 }} />}
-                {thresholdMarkers[6] && <ReferenceLine x={thresholdMarkers[6]} stroke="#F59E0B" strokeDasharray="4 4" label={{ value: '6 mo', position: 'top', fill: '#F59E0B', fontSize: 10 }} />}
-                {thresholdMarkers[3] && <ReferenceLine x={thresholdMarkers[3]} stroke="#EF4444" strokeDasharray="4 4" label={{ value: '3 mo', position: 'top', fill: '#EF4444', fontSize: 10 }} />}
-                <Line type="monotone" dataKey="balance" stroke="#3B82F6" strokeWidth={3} dot={false} name="Balance" isAnimationActive animationDuration={700} />
-                <Line type="monotone" dataKey="expenses" stroke="#EF4444" strokeWidth={2} dot={{ r: 2 }} name="Expenses" isAnimationActive animationDuration={700} />
-                <Line type="monotone" dataKey="revenue" stroke="#10B981" strokeWidth={2} dot={{ r: 2 }} name="Revenue" isAnimationActive animationDuration={700} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+                Add now
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

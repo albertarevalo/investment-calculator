@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { AppState, Expense, Plan, BurnRateSettings } from './types';
 import { loadState, saveState, createDefaultPlan, generateId, createDefaultBurnRateSettings, normalizeBurnRateSettings, createDefaultMrrSettings, normalizeMrrSettings } from './utils/storage';
 import { calculateResults } from './utils/calculator';
@@ -30,6 +30,7 @@ function App() {
   const [showMobilePlanSheet, setShowMobilePlanSheet] = useState(false);
   const { toasts, removeToast } = useToast();
   const { convert, rates } = useExchangeRates();
+  const availableFundsInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     saveState(state);
@@ -73,6 +74,10 @@ function App() {
     if (!activePlan) return null;
     return calculateResults(activePlan.expenses, activePlan.settings, availableFunds);
   }, [activePlan, availableFunds]);
+
+  const focusAvailableFunds = useCallback(() => {
+    availableFundsInputRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'mrr' && !showMrrTab) {
@@ -771,6 +776,7 @@ function App() {
                     expenses={activePlan.expenses}
                     results={results!}
                     settings={activePlan.settings}
+                    onFocusAvailableFunds={focusAvailableFunds}
                   />
                 </div>
               </div>
@@ -779,7 +785,8 @@ function App() {
                   settings={activePlan.settings}
                   onUpdateSettings={(newSettings) => updatePlan({ settings: newSettings })}
                   availableFunds={availableFunds}
-                  onUpdateAvailableFunds={setAvailableFunds}
+                  onUpdateAvailableFunds={(value) => setAvailableFunds(value)}
+                  availableFundsInputRef={availableFundsInputRef}
                 />
               </div>
               <div className="mt-6">
