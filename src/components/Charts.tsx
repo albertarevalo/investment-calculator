@@ -252,7 +252,13 @@ export function Charts({ expenses, results, settings }: ChartsProps) {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatCurrency(v, primarySymbol)} />
-                <Tooltip formatter={(v: number, key: string) => [formatCurrency(v, primarySymbol), key === 'revenue' ? 'Revenue' : key === 'expenses' ? 'Expenses' : 'Net']} />
+                <Tooltip
+                  formatter={(value: number, _name: string, props) => {
+                    const dataKey = (props && 'dataKey' in props) ? (props as any).dataKey as string : _name;
+                    const label = dataKey === 'revenue' ? 'Revenue' : dataKey === 'expenses' ? 'Expenses' : 'Net';
+                    return [formatCurrency(value, primarySymbol), label];
+                  }}
+                />
                 <Legend />
                 <Bar dataKey="revenue" name="Revenue" stackId="cash" fill="#10B981" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="expenses" name="Expenses" stackId="cash" fill="#EF4444" radius={[4, 4, 0, 0]} />

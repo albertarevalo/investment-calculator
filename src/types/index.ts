@@ -18,6 +18,7 @@ export interface RevenueStream {
   frequency: RecurringFrequency;
   currency?: string;
   startMonth?: number; // month offset (0 = current month)
+  growthRate?: number; // MoM growth percentage (0-100+)
 }
 
 export interface BurnRateSettings {

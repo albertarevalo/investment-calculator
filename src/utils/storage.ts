@@ -51,6 +51,7 @@ export const normalizeBurnRateSettings = (raw: any): BurnRateSettings => {
         frequency: stream.frequency === 'yearly' ? 'yearly' : 'monthly',
         currency: typeof stream.currency === 'string' ? stream.currency : undefined,
         startMonth: typeof stream.startMonth === 'number' ? stream.startMonth : 0,
+        growthRate: typeof stream.growthRate === 'number' ? stream.growthRate : 0,
       }))
     : [];
 
@@ -65,6 +66,7 @@ export const normalizeBurnRateSettings = (raw: any): BurnRateSettings => {
       frequency: raw.revenueFrequency === 'yearly' ? 'yearly' : 'monthly',
       currency: typeof raw.currency === 'string' ? raw.currency : undefined,
       startMonth: 0,
+      growthRate: 0,
     });
   }
 
@@ -126,12 +128,12 @@ export const createDefaultPlan = (): Plan => ({
   createdAt: new Date().toISOString(),
   expenses: [],
   settings: {
-    targetRunwayMonths: 12,
-    bufferMonths: 3,
-    bufferPercentage: 20,
+    targetRunwayMonths: 8,
+    bufferMonths: 0,
+    bufferPercentage: 10,
     primaryCurrency: 'USD',
-    secondaryCurrency: 'EUR',
-    showSecondaryCurrency: false,
+    secondaryCurrency: 'PHP',
+    showSecondaryCurrency: true,
     showMrrTab: false,
     mrrSettings: createDefaultMrrSettings(),
     burnRateSettings: createDefaultBurnRateSettings(),
@@ -150,12 +152,12 @@ export const loadState = (): AppState => {
           return {
             ...plan,
             settings: {
-              targetRunwayMonths: oldSettings.targetRunwayMonths || 12,
-              bufferMonths: oldSettings.bufferMonths || 3,
-              bufferPercentage: oldSettings.bufferPercentage || 20,
+              targetRunwayMonths: oldSettings.targetRunwayMonths || 8,
+              bufferMonths: oldSettings.bufferMonths || 0,
+              bufferPercentage: oldSettings.bufferPercentage || 10,
               primaryCurrency: 'USD', // Default migration to USD
-              secondaryCurrency: 'EUR',
-              showSecondaryCurrency: false,
+              secondaryCurrency: 'PHP',
+              showSecondaryCurrency: true,
               showMrrTab: false,
               burnRateSettings: createDefaultBurnRateSettings(),
             },
@@ -169,6 +171,11 @@ export const loadState = (): AppState => {
             showMrrTab: typeof oldSettings.showMrrTab === 'boolean' ? oldSettings.showMrrTab : false,
             mrrSettings: normalizeMrrSettings(oldSettings?.mrrSettings),
             burnRateSettings: normalizeBurnRateSettings(oldSettings?.burnRateSettings),
+            targetRunwayMonths: typeof oldSettings.targetRunwayMonths === 'number' ? oldSettings.targetRunwayMonths : 8,
+            bufferMonths: typeof oldSettings.bufferMonths === 'number' ? oldSettings.bufferMonths : 0,
+            bufferPercentage: typeof oldSettings.bufferPercentage === 'number' ? oldSettings.bufferPercentage : 10,
+            secondaryCurrency: typeof oldSettings.secondaryCurrency === 'string' ? oldSettings.secondaryCurrency : 'PHP',
+            showSecondaryCurrency: typeof oldSettings.showSecondaryCurrency === 'boolean' ? oldSettings.showSecondaryCurrency : true,
           },
         };
       });

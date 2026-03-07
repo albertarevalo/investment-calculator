@@ -130,6 +130,9 @@ export function ExpenseList({ expenses, onUpdate, onDelete, settings }: ExpenseL
             <p className="font-medium text-gray-900">{expense.name}</p>
             <p className="text-sm text-gray-500">
               {expense.type === 'recurring' && expense.frequency === 'yearly' ? 'Yearly' : expense.type === 'recurring' ? 'Monthly' : 'One-time'}
+              {typeof expense.startMonth === 'number' && expense.startMonth > 0 &&
+                ` · Starts ${monthOptions.find((m) => m.value === expense.startMonth)?.label || ''}`}
+              {(!expense.startMonth || expense.startMonth === 0) && ' · Starts Now'}
             </p>
           </div>
         </div>

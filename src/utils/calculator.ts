@@ -1,4 +1,4 @@
-import type { Expense, PlanSettings, CalculationResult } from '../types';
+import type { Expense, PlanSettings, CalculationResult, RevenueStream } from '../types';
 
 export const calculateResults = (
   expenses: Expense[],
@@ -21,6 +21,8 @@ export const calculateResults = (
     }
   });
 
+  const revenueStreams: RevenueStream[] = settings.burnRateSettings?.revenueStreams || [];
+
   const monthlyBurnAt = (month: number) => {
     return expenses.reduce((total, expense) => {
       const startMonth = expense.startMonth ?? 0;
@@ -30,6 +32,18 @@ export const calculateResults = (
         return total + monthlyAmount;
       }
       return total;
+    }, 0);
+  };
+
+  const monthlyRevenueAt = (month: number) => {
+    return revenueStreams.reduce((sum, stream) => {
+      const startMonth = stream.startMonth ?? 0;
+      if (month < startMonth) return sum;
+      const baseMonthly = stream.frequency === 'yearly' ? stream.amount / 12 : stream.amount;
+      const growthRate = typeof stream.growthRate === 'number' ? stream.growthRate : 0;
+      const monthsElapsed = month - startMonth;
+      const grown = baseMonthly * Math.pow(1 + growthRate / 100, monthsElapsed);
+      return sum + Math.max(grown, 0);
     }, 0);
   };
 
@@ -43,22 +57,25 @@ export const calculateResults = (
     }, 0);
   };
 
-  const monthlyBurn = monthlyBurnAt(0);
+  const monthlyNetBurn = monthlyBurnAt(0) - monthlyRevenueAt(0);
+  const monthlyBurn = monthlyNetBurn;
 
   let totalNeeded = 0;
   for (let month = 0; month < settings.targetRunwayMonths; month++) {
-    totalNeeded += monthlyBurnAt(month) + oneTimeAt(month);
+    const netThisMonth = monthlyBurnAt(month) - monthlyRevenueAt(month);
+    const monthNeed = Math.max(netThisMonth, 0) + oneTimeAt(month);
+    totalNeeded += monthNeed;
   }
 
   const bufferAmount = totalNeeded * (settings.bufferPercentage / 100);
-  const bufferMonthsAmount = monthlyBurn * settings.bufferMonths;
+  const bufferMonthsAmount = Math.max(monthlyNetBurn, 0) * settings.bufferMonths;
   const totalWithBuffer = totalNeeded + bufferAmount + bufferMonthsAmount;
 
   let runwayMonths: number = 0;
   let remaining = availableFunds;
   const maxMonths = 600; // safety cap
   for (let month = 0; month < maxMonths; month++) {
-    const burnThisMonth = monthlyBurnAt(month) + oneTimeAt(month);
+    const burnThisMonth = monthlyBurnAt(month) - monthlyRevenueAt(month) + oneTimeAt(month);
     if (burnThisMonth <= 0) {
       runwayMonths = Infinity;
       break;

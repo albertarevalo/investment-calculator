@@ -1,6 +1,6 @@
 import type { PlanSettings, Expense, BurnRateSettings, RevenueStream } from '../types';
-import { useState, useMemo, useEffect, useCallback } from 'react';
-import { Flame, DollarSign, Calendar, AlertTriangle, TrendingDown, Clock, Plus, Trash2 } from 'lucide-react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { Flame, DollarSign, Calendar, AlertTriangle, TrendingDown, Clock, Plus, Trash2, Pencil } from 'lucide-react';
 import { getCurrencySymbol } from '../hooks/useExchangeRates';
 import { sanitizeMoneyInput, parseMoneyInput } from '../utils/money';
 import { generateId } from '../utils/storage';
@@ -22,6 +22,7 @@ interface MonthData {
   endingCash: number;
   runwayMonths: number;
   status: 'healthy' | 'warning' | 'critical';
+  milestoneMultiple?: number;
 }
 
 export function BurnRateCalculator({
@@ -37,6 +38,11 @@ export function BurnRateCalculator({
   const [newStreamAmount, setNewStreamAmount] = useState('');
   const [newStreamFrequency, setNewStreamFrequency] = useState<'monthly' | 'yearly'>('monthly');
   const [newStreamStartMonth, setNewStreamStartMonth] = useState('0');
+  const [newStreamGrowthRate, setNewStreamGrowthRate] = useState('0');
+  const [showFullRoi, setShowFullRoi] = useState(false);
+  const prevShowFullRoi = useRef(false);
+  const [editingStreamId, setEditingStreamId] = useState<string | null>(null);
+  const [streamDraft, setStreamDraft] = useState<Partial<RevenueStream> | null>(null);
 
   const monthOptions = useMemo(() => {
     const now = new Date();
@@ -78,8 +84,11 @@ export function BurnRateCalculator({
     return burnSettings.revenueStreams.reduce((sum, stream) => {
       const startsAt = typeof stream.startMonth === 'number' ? stream.startMonth : 0;
       if (monthIndex < startsAt) return sum;
-      const monthlyAmount = stream.frequency === 'yearly' ? stream.amount / 12 : stream.amount;
-      return sum + monthlyAmount;
+      const baseMonthly = stream.frequency === 'yearly' ? stream.amount / 12 : stream.amount;
+      const growthRate = typeof stream.growthRate === 'number' ? stream.growthRate : 0;
+      const monthsElapsed = monthIndex - startsAt;
+      const grown = baseMonthly * Math.pow(1 + growthRate / 100, monthsElapsed);
+      return sum + Math.max(grown, 0);
     }, 0);
   }, [burnSettings.revenueStreams]);
 
@@ -103,6 +112,7 @@ export function BurnRateCalculator({
     e.preventDefault();
     const amountValue = parseMoneyInput(newStreamAmount);
     const startMonthValue = Math.max(0, parseInt(newStreamStartMonth || '0', 10) || 0);
+    const growthValue = Math.max(0, parseFloat(newStreamGrowthRate || '0'));
     if (!newStreamName.trim() || amountValue <= 0) return;
 
     onUpdateBurnSettings((prev) => ({
@@ -116,6 +126,7 @@ export function BurnRateCalculator({
           frequency: newStreamFrequency,
           currency: settings.primaryCurrency,
           startMonth: startMonthValue,
+          growthRate: growthValue,
         },
       ],
     }));
@@ -124,6 +135,7 @@ export function BurnRateCalculator({
     setNewStreamAmount('');
     setNewStreamFrequency('monthly');
     setNewStreamStartMonth('0');
+    setNewStreamGrowthRate('0');
   };
 
   const handleStreamChange = (id: string, updates: Partial<RevenueStream>) => {
@@ -133,6 +145,33 @@ export function BurnRateCalculator({
         stream.id === id ? { ...stream, ...updates } : stream
       ),
     }));
+  };
+
+  const startEditingStream = (stream: RevenueStream) => {
+    setEditingStreamId(stream.id);
+    setStreamDraft({
+      ...stream,
+      startMonth: stream.startMonth ?? 0,
+      growthRate: stream.growthRate ?? 0,
+    });
+  };
+
+  const cancelEditingStream = () => {
+    setEditingStreamId(null);
+    setStreamDraft(null);
+  };
+
+  const saveEditingStream = (id: string) => {
+    if (!streamDraft) return;
+    handleStreamChange(id, {
+      name: streamDraft.name,
+      amount: typeof streamDraft.amount === 'number' ? streamDraft.amount : 0,
+      frequency: (streamDraft.frequency as 'monthly' | 'yearly') ?? 'monthly',
+      startMonth: typeof streamDraft.startMonth === 'number' ? streamDraft.startMonth : 0,
+      growthRate: typeof streamDraft.growthRate === 'number' ? streamDraft.growthRate : 0,
+    });
+    setEditingStreamId(null);
+    setStreamDraft(null);
   };
 
   const handleDeleteStream = (id: string) => {
@@ -147,11 +186,20 @@ export function BurnRateCalculator({
     return value.toLocaleString('en-US');
   };
 
+  const updateStreamDraft = (updates: Partial<RevenueStream>) => {
+    setStreamDraft((prev) => (prev ? { ...prev, ...updates } : prev));
+  };
+
   // Calculate projections
   const projections = useMemo((): MonthData[] => {
     const data: MonthData[] = [];
     let currentCash = burnSettings.startingCash;
-    const months = Math.max(1, burnSettings.projectionMonths);
+    const baseMonths = Math.max(1, burnSettings.projectionMonths);
+    const months = showFullRoi ? 600 : baseMonths;
+    const initialCash = burnSettings.startingCash;
+    let cumulativeNet = 0;
+    let nextRevenueMultiple = 1;
+    const maxMultiple = 100;
 
     for (let month = 0; month <= months; month++) {
       const date = new Date();
@@ -171,6 +219,22 @@ export function BurnRateCalculator({
         status = 'critical';
       }
 
+      let milestoneMultiple: number | undefined;
+      if (initialCash > 0 && nextRevenueMultiple <= maxMultiple) {
+        const netThisMonth = monthlyRevenue - expenseThisMonth;
+        const before = cumulativeNet;
+        const after = cumulativeNet + netThisMonth;
+        if (before < initialCash * nextRevenueMultiple && after >= initialCash * nextRevenueMultiple) {
+          milestoneMultiple = nextRevenueMultiple;
+          nextRevenueMultiple += 1;
+          while (nextRevenueMultiple <= maxMultiple && after >= initialCash * nextRevenueMultiple) {
+            milestoneMultiple = nextRevenueMultiple;
+            nextRevenueMultiple += 1;
+          }
+        }
+        cumulativeNet = after;
+      }
+
       data.push({
         month,
         date: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
@@ -180,6 +244,7 @@ export function BurnRateCalculator({
         endingCash: currentCash - (month === 0 ? 0 : thisMonthNetBurn),
         runwayMonths,
         status,
+        milestoneMultiple,
       });
 
       if (month > 0) {
@@ -188,10 +253,27 @@ export function BurnRateCalculator({
       
       // Stop if we run out of cash
       if (currentCash < 0) break;
+      if (!showFullRoi && month >= baseMonths) break;
+      if (showFullRoi && milestoneMultiple === maxMultiple) break;
     }
 
     return data;
-  }, [burnSettings.startingCash, burnSettings.projectionMonths, calculatedMonthlyExpenses, monthlyExpenseAt, oneTimeExpenseAt, monthlyRevenueAt]);
+  }, [burnSettings.startingCash, burnSettings.projectionMonths, calculatedMonthlyExpenses, monthlyExpenseAt, oneTimeExpenseAt, monthlyRevenueAt, showFullRoi]);
+
+  const roiTargetMonth = useMemo(() => {
+    const hit = projections.find((p) => p.milestoneMultiple === 100);
+    return hit ? hit.month : null;
+  }, [projections]);
+
+  useEffect(() => {
+    if (showFullRoi && roiTargetMonth !== null && roiTargetMonth !== burnSettings.projectionMonths) {
+      onUpdateBurnSettings((prev) => ({ ...prev, projectionMonths: roiTargetMonth }));
+    }
+    if (!showFullRoi && prevShowFullRoi.current && burnSettings.projectionMonths !== 12) {
+      onUpdateBurnSettings((prev) => ({ ...prev, projectionMonths: 12 }));
+    }
+    prevShowFullRoi.current = showFullRoi;
+  }, [showFullRoi, roiTargetMonth, burnSettings.projectionMonths, onUpdateBurnSettings]);
 
   const formatCurrency = (value: number) => {
     if (value === Infinity) return '∞';
@@ -217,6 +299,13 @@ export function BurnRateCalculator({
   const projectedRunwayMonths = useMemo(() => {
     if (!projections.length) return 0;
     const firstBelowZero = projections.find((p) => p.endingCash < 0);
+    const firstNonPositiveBurnIdx = projections.findIndex((p) => p.monthlyBurn <= 0 && p.month > 0);
+    if (firstNonPositiveBurnIdx >= 0) {
+      const allNonPositiveAfter = projections.slice(firstNonPositiveBurnIdx).every((p) => p.monthlyBurn <= 0);
+      if (allNonPositiveAfter) {
+        return Infinity;
+      }
+    }
     const lastNonNegative = projections
       .filter((p) => p.endingCash >= 0)
       .sort((a, b) => b.month - a.month)[0];
@@ -271,20 +360,32 @@ export function BurnRateCalculator({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Calendar className="w-4 h-4 inline mr-1" />
-              Projection Months
-            </label>
+            <div className="flex items-center gap-3 mb-2 whitespace-nowrap">
+              <label className="block text-sm font-medium text-gray-700 flex items-center gap-1">
+                <Calendar className="w-4 h-4" />
+                <span>Projection Months</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs font-semibold text-blue-800 bg-blue-50 border border-blue-100 px-2 py-1 rounded-lg shadow-sm cursor-pointer" title="Shows timeline until 100xVC net payback (see 100xvc.io)">
+                <input
+                  type="checkbox"
+                  checked={showFullRoi}
+                  onChange={(e) => setShowFullRoi(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <span className="whitespace-nowrap">Show when to get 100xVC</span>
+              </label>
+            </div>
             <div className="relative">
               <input
                 type="number"
                 value={burnSettings.projectionMonths}
                 onChange={(e) => handleProjectionChange(parseInt(e.target.value) || 1)}
                 min={1}
-                max={60}
+                max={showFullRoi ? 600 : 60}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+            <p className="text-xs text-gray-500 mt-1">100xVC milestones use net payback vs initial capital (see <a href="https://100xvc.io/" className="text-blue-600 underline" target="_blank" rel="noreferrer">100xVC</a>).</p>
           </div>
         </div>
 
@@ -306,7 +407,7 @@ export function BurnRateCalculator({
             </div>
           </div>
 
-          <form onSubmit={handleAddStream} className="grid grid-cols-1 md:grid-cols-[2fr,1fr,auto,auto,auto] gap-3 p-4 border border-gray-200 rounded-xl bg-gray-50">
+          <form onSubmit={handleAddStream} className="grid grid-cols-1 md:grid-cols-[2fr,1fr,auto,auto,auto,auto] gap-3 p-4 border border-gray-200 rounded-xl bg-gray-50">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Name</label>
               <input
@@ -356,6 +457,21 @@ export function BurnRateCalculator({
                 <option value="yearly">Yearly</option>
               </select>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">MoM Growth %</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  value={newStreamGrowthRate}
+                  onChange={(e) => setNewStreamGrowthRate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="0"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+              </div>
+            </div>
             <div className="flex items-end">
               <button
                 type="submit"
@@ -370,52 +486,100 @@ export function BurnRateCalculator({
           {burnSettings.revenueStreams.length > 0 ? (
             <div className="mt-4 space-y-3">
               {burnSettings.revenueStreams.map((stream) => (
-                <div key={stream.id} className="flex flex-col md:flex-row md:items-center gap-3 p-4 border border-gray-200 rounded-xl">
-                  <div className="flex-1">
-                    <input
-                      type="text"
-                      value={stream.name}
-                      onChange={(e) => handleStreamChange(stream.id, { name: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div className="flex-1 relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{symbol}</span>
-                    <input
-                      type="text"
-                      value={formatInputValue(stream.amount)}
-                      onChange={(e) => {
-                        const parsed = parseMoneyInput(e.target.value);
-                        handleStreamChange(stream.id, { amount: parsed });
-                      }}
-                      className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <select
-                    value={stream.frequency}
-                    onChange={(e) => handleStreamChange(stream.id, { frequency: e.target.value as 'monthly' | 'yearly' })}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="monthly">Monthly</option>
-                    <option value="yearly">Yearly</option>
-                  </select>
-                  <select
-                    value={(stream.startMonth ?? 0).toString()}
-                    onChange={(e) => handleStreamChange(stream.id, { startMonth: Math.max(0, parseInt(e.target.value || '0', 10) || 0) })}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    title="Start month"
-                  >
-                    {monthOptions.map((opt) => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteStream(stream.id)}
-                    className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                <div key={stream.id} className="p-4 border border-gray-200 rounded-xl bg-white">
+                  {editingStreamId === stream.id && streamDraft ? (
+                    <div className="grid grid-cols-1 md:grid-cols-[1.5fr,1fr,auto,auto,auto,auto] md:items-center gap-3">
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={streamDraft.name ?? ''}
+                          onChange={(e) => updateStreamDraft({ name: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div className="flex-1 relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{symbol}</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={streamDraft.amount ?? 0}
+                          onChange={(e) => updateStreamDraft({ amount: parseMoneyInput(e.target.value) })}
+                          className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <select
+                        value={(streamDraft.frequency as 'monthly' | 'yearly') ?? 'monthly'}
+                        onChange={(e) => updateStreamDraft({ frequency: e.target.value as 'monthly' | 'yearly' })}
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly</option>
+                      </select>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.1"
+                          value={(streamDraft.growthRate ?? 0).toString()}
+                          onChange={(e) => updateStreamDraft({ growthRate: Math.max(0, parseFloat(e.target.value || '0')) })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="0"
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                      </div>
+                      <select
+                        value={(streamDraft.startMonth ?? 0).toString()}
+                        onChange={(e) => updateStreamDraft({ startMonth: Math.max(0, parseInt(e.target.value || '0', 10) || 0) })}
+                        className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        title="Start month"
+                      >
+                        {monthOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                      <div className="flex items-center gap-2 justify-end">
+                        <button
+                          type="button"
+                          onClick={() => saveEditingStream(stream.id)}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelEditingStream}
+                          className="px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{stream.name}</p>
+                        <p className="text-xs text-gray-500">Starts {monthOptions.find((m) => m.value === (stream.startMonth ?? 0))?.label || 'Now'} · {stream.frequency === 'yearly' ? 'Yearly' : 'Monthly'} · Growth {stream.growthRate ?? 0}%</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-gray-900">{formatCurrency(stream.amount)}</span>
+                        <button
+                          type="button"
+                          onClick={() => startEditingStream(stream)}
+                          className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteStream(stream.id)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -426,98 +590,119 @@ export function BurnRateCalculator({
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">Net Monthly Burn</p>
-            <p className="text-xl font-bold text-gray-900">
-              {formatCurrency(netBurn)}
+          <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl shadow-sm">
+            <p className="text-sm font-semibold text-blue-800 flex items-center gap-2">
+              <Flame className="w-4 h-4" /> Net Monthly Burn
             </p>
-            <p className="text-xs text-gray-500">
+            <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(netBurn)}</p>
+            <p className="text-xs text-blue-900/70 mt-1">
               {isProfitable
                 ? 'Profitable! Revenue exceeds expenses'
                 : `${formatCurrency(totalMonthlyRevenue)} revenue vs ${formatCurrency(calculatedMonthlyExpenses)} expenses`}
             </p>
           </div>
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">Current Runway</p>
-            <p className="text-xl font-bold text-gray-900">
-              {isProfitable ? '∞' : formatRunway(projectedRunwayMonths)}
+          <div className="bg-purple-50 border border-purple-100 p-4 rounded-xl shadow-sm">
+            <p className="text-sm font-semibold text-purple-800 flex items-center gap-2">
+              <Calendar className="w-4 h-4" /> Current Runway
             </p>
-            <p className="text-xs text-gray-500">
+            <p className="text-2xl font-bold text-gray-900 mt-1">{isProfitable ? '∞' : formatRunway(projectedRunwayMonths)}</p>
+            <p className="text-xs text-purple-900/70 mt-1">
               {isProfitable ? 'No cash out date' : `Until ${cashOutDate}`}
             </p>
           </div>
-          <div className="bg-orange-50 p-4 rounded-lg">
-            <p className="text-sm text-gray-600">Burn Multiple</p>
-            <p className="text-xl font-bold text-gray-900">
-              {burnMultiple && !isProfitable ? `${burnMultiple.toFixed(2)}x` : 'N/A'}
+          <div className="bg-orange-50 border border-orange-100 p-4 rounded-xl shadow-sm">
+            <p className="text-sm font-semibold text-orange-800 flex items-center gap-2">
+              <TrendingDown className="w-4 h-4" /> Burn Multiple
             </p>
-            <p className="text-xs text-gray-500">
-              Expenses / Revenue
-            </p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{burnMultiple && !isProfitable ? `${burnMultiple.toFixed(2)}x` : 'N/A'}</p>
+            <p className="text-xs text-orange-900/70 mt-1">Expenses / Revenue</p>
           </div>
-          <div className={`${projectedRunwayMonths > 12 || isProfitable ? 'bg-green-50' : projectedRunwayMonths > 6 ? 'bg-yellow-50' : 'bg-red-50'} p-4 rounded-lg`}>
-            <p className="text-sm text-gray-600">Status</p>
-            <p className="text-xl font-bold text-gray-900 flex items-center gap-1">
-              {isProfitable ? (
-                <>Healthy <Clock className="w-5 h-5 text-green-600" /></>
-              ) : projectedRunwayMonths > 12 ? (
-                <>Healthy <Clock className="w-5 h-5 text-green-600" /></>
-              ) : projectedRunwayMonths > 6 ? (
-                <>Warning <AlertTriangle className="w-5 h-5 text-yellow-600" /></>
-              ) : (
-                <>Critical <AlertTriangle className="w-5 h-5 text-red-600" /></>
-              )}
-            </p>
-            <p className="text-xs text-gray-500">
-              {isProfitable ? 'Generating profit' : projectedRunwayMonths > 12 ? '12+ months runway' : projectedRunwayMonths > 6 ? '6-12 months runway' : 'Less than 6 months'}
-            </p>
+          <div className={`${projectedRunwayMonths > 12 || isProfitable ? 'bg-green-50 border border-green-100' : projectedRunwayMonths > 6 ? 'bg-yellow-50 border border-yellow-100' : 'bg-red-50 border border-red-100'} p-4 rounded-xl shadow-sm`}>
+            <p className="text-sm font-semibold text-gray-800 flex items-center gap-2">Status</p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold ${isProfitable || projectedRunwayMonths > 12 ? 'bg-green-100 text-green-800' : projectedRunwayMonths > 6 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
+                {isProfitable ? 'Healthy' : projectedRunwayMonths > 12 ? 'Healthy' : projectedRunwayMonths > 6 ? 'Warning' : 'Critical'}
+                {isProfitable ? <Clock className="w-4 h-4" /> : <AlertTriangle className={`w-4 h-4 ${projectedRunwayMonths > 6 ? 'text-yellow-600' : 'text-red-600'}`} />}
+              </span>
+              <span className="text-sm text-gray-700">{isProfitable ? 'Generating profit' : projectedRunwayMonths > 12 ? '12+ months runway' : projectedRunwayMonths > 6 ? '6-12 months runway' : 'Less than 6 months'}</span>
+            </div>
           </div>
         </div>
 
         {/* Projection Table */}
         <div className="overflow-x-auto">
+          <div className="flex items-center justify-between text-xs text-gray-500 mb-2 px-1">
+            <span className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-green-500"></span>Revenue</span>
+              <span className="inline-flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-400"></span>Expenses</span>
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="px-2 py-1 rounded-full bg-green-100 text-green-700 font-medium">Healthy</span>
+              <span className="px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 font-medium">Warning</span>
+              <span className="px-2 py-1 rounded-full bg-red-100 text-red-700 font-medium">Critical</span>
+            </span>
+          </div>
           <table className="w-full text-sm">
-            <thead>
+            <thead className="sticky top-0 z-10 bg-white shadow-sm">
               <tr className="border-b border-gray-200">
-                <th className="text-left py-2 px-3 font-medium text-gray-600">Month</th>
-                <th className="text-right py-2 px-3 font-medium text-gray-600">Starting Cash</th>
-                <th className="text-right py-2 px-3 font-medium text-gray-600">Revenue</th>
-                <th className="text-right py-2 px-3 font-medium text-gray-600">Expenses</th>
-                <th className="text-right py-2 px-3 font-medium text-gray-600">Net Burn</th>
-                <th className="text-right py-2 px-3 font-medium text-gray-600">Ending Cash</th>
-                <th className="text-right py-2 px-3 font-medium text-gray-600">Runway</th>
+                <th className="text-left py-2 px-3 font-semibold text-gray-700">Month</th>
+                <th className="text-right py-2 px-3 font-semibold text-gray-700">Starting Cash</th>
+                <th className="text-right py-2 px-3 font-semibold text-gray-700">Revenue</th>
+                <th className="text-right py-2 px-3 font-semibold text-gray-700">Expenses</th>
+                <th className="text-right py-2 px-3 font-semibold text-gray-700">Net Burn</th>
+                <th className="text-right py-2 px-3 font-semibold text-gray-700">Ending Cash</th>
+                <th className="text-right py-2 px-3 font-semibold text-gray-700">Runway</th>
               </tr>
             </thead>
             <tbody>
-              {projections.map((data) => (
-                <tr 
-                  key={data.month} 
-                  className={`border-b border-gray-100 last:border-0 hover:bg-gray-50 ${
-                    data.status === 'critical' ? 'bg-red-50' : 
-                    data.status === 'warning' ? 'bg-yellow-50' : ''
-                  }`}
-                >
-                  <td className="py-2 px-3 text-gray-900">{data.month === 0 ? 'Now' : data.date}</td>
-                  <td className="text-right py-2 px-3 text-gray-700">{formatCurrency(data.startingCash)}</td>
-                  <td className="text-right py-2 px-3 text-green-600">{formatCurrency(data.monthlyRevenue)}</td>
-                  <td className="text-right py-2 px-3 text-red-500">{formatCurrency(calculatedMonthlyExpenses)}</td>
-                  <td className="text-right py-2 px-3 font-medium text-gray-900">
-                    {data.month === 0 ? '-' : formatCurrency(data.monthlyBurn)}
-                  </td>
-                  <td className={`text-right py-2 px-3 font-medium ${data.endingCash < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                    {formatCurrency(data.endingCash)}
-                  </td>
-                  <td className="text-right py-2 px-3">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      data.status === 'healthy' ? 'bg-green-100 text-green-800' :
-                      data.status === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {formatRunway(data.runwayMonths)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {projections.map((data) => {
+                const isZeroCross = data.endingCash <= 0;
+                const netBurnPositive = data.monthlyBurn > 0;
+                const hasMilestone = typeof data.milestoneMultiple === 'number';
+                return (
+                  <tr
+                    key={data.month}
+                    className={`border-b border-gray-100 last:border-0 hover:bg-gray-50 ${
+                      isZeroCross
+                        ? 'bg-red-100/70'
+                        : hasMilestone
+                          ? 'bg-emerald-50'
+                          : data.status === 'critical'
+                            ? 'bg-red-50'
+                            : data.status === 'warning'
+                              ? 'bg-yellow-50'
+                              : ''
+                    }`}
+                  >
+                    <td className="py-2 px-3 text-gray-900 font-medium flex items-center gap-2">
+                      <span>{data.month === 0 ? 'Now' : data.date}</span>
+                      {hasMilestone && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          {data.milestoneMultiple}x
+                        </span>
+                      )}
+                    </td>
+                    <td className="text-right py-2 px-3 text-gray-700">{formatCurrency(data.startingCash)}</td>
+                    <td className="text-right py-2 px-3 text-green-600 font-medium">{formatCurrency(data.monthlyRevenue)}</td>
+                    <td className="text-right py-2 px-3 text-red-500 font-medium">{formatCurrency(calculatedMonthlyExpenses)}</td>
+                    <td className={`text-right py-2 px-3 font-semibold ${netBurnPositive ? 'text-red-600' : 'text-green-600'}`}>
+                      {data.month === 0 ? '-' : formatCurrency(data.monthlyBurn)}
+                    </td>
+                    <td className={`text-right py-2 px-3 font-semibold ${data.endingCash < 0 ? 'text-red-700' : 'text-gray-900'}`}>
+                      {formatCurrency(data.endingCash)}
+                    </td>
+                    <td className="text-right py-2 px-3">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
+                        data.status === 'healthy' ? 'bg-green-100 text-green-800' :
+                        data.status === 'warning' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {formatRunway(data.runwayMonths)}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
