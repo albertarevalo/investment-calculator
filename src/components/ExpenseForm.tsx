@@ -15,6 +15,7 @@ export function ExpenseForm({ onAdd, settings }: ExpenseFormProps) {
   const [amount, setAmount] = useState('');
   const [frequency, setFrequency] = useState<'monthly' | 'yearly'>('monthly');
   const [startMonth, setStartMonth] = useState('0');
+  const [growthRate, setGrowthRate] = useState('0');
 
   const primarySymbol = getCurrencySymbol(settings.primaryCurrency);
 
@@ -36,12 +37,17 @@ export function ExpenseForm({ onAdd, settings }: ExpenseFormProps) {
     e.preventDefault();
     if (!name.trim() || !amount) return;
 
+    const amountValue = parseFloat(amount) || 0;
+    const startMonthValue = Math.max(0, parseInt(startMonth, 10) || 0);
+    const growthValue = Math.max(0, parseFloat(growthRate || '0'));
+
     onAdd({
       name: name.trim(),
-      amount: parseFloat(amount),
+      amount: amountValue,
       type,
-      startMonth: Math.max(0, parseInt(startMonth || '0', 10) || 0),
+      startMonth: startMonthValue,
       frequency: type === 'recurring' ? frequency : undefined,
+      growthRate: growthValue,
     });
 
     setName('');
@@ -49,6 +55,7 @@ export function ExpenseForm({ onAdd, settings }: ExpenseFormProps) {
     setType('one-time');
     setFrequency('monthly');
     setStartMonth('0');
+    setGrowthRate('0');
     setIsOpen(false);
   };
 
@@ -119,34 +126,52 @@ export function ExpenseForm({ onAdd, settings }: ExpenseFormProps) {
               required
             />
           </div>
-          <select
-            value={startMonth}
-            onChange={(e) => setStartMonth(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {monthOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          {type === 'recurring' && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <select
-              value={frequency}
-              onChange={(e) => setFrequency(e.target.value as 'monthly' | 'yearly')}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={startMonth}
+              onChange={(e) => setStartMonth(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
+              {monthOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
             </select>
-          )}
+            {type === 'recurring' && (
+              <select
+                value={frequency}
+                onChange={(e) => setFrequency(e.target.value as 'monthly' | 'yearly')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">MoM Growth %</label>
+            <div className="relative">
+              <input
+                type="number"
+                min={0}
+                step="0.1"
+                value={growthRate}
+                onChange={(e) => setGrowthRate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="0"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+            </div>
+          </div>
         </div>
 
         <div className="flex gap-2">
           <button
             type="submit"
-            className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
+            <Plus className="w-4 h-4" />
             Add Expense
           </button>
           <button

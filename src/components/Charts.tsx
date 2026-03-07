@@ -43,8 +43,11 @@ export function Charts({ expenses, results, settings }: ChartsProps) {
         const startMonth = expense.startMonth ?? 0;
         if (month < startMonth) return total;
         if (expense.type === 'recurring') {
-          const monthlyAmount = expense.frequency === 'yearly' ? expense.amount / 12 : expense.amount;
-          return total + monthlyAmount;
+          const baseMonthly = expense.frequency === 'yearly' ? expense.amount / 12 : expense.amount;
+          const growthRate = typeof expense.growthRate === 'number' ? expense.growthRate : 0;
+          const monthsElapsed = month - startMonth;
+          const grown = baseMonthly * Math.pow(1 + growthRate / 100, monthsElapsed);
+          return total + Math.max(grown, 0);
         }
         return total;
       }, 0);
@@ -69,10 +72,13 @@ export function Charts({ expenses, results, settings }: ChartsProps) {
       return streams.reduce((sum, stream) => {
         const startMonth = stream.startMonth ?? 0;
         if (month < startMonth) return sum;
-        const monthlyAmount = stream.frequency === 'yearly'
+        const baseMonthly = stream.frequency === 'yearly'
           ? stream.amount / 12
           : stream.amount;
-        return sum + monthlyAmount;
+        const growthRate = typeof stream.growthRate === 'number' ? stream.growthRate : 0;
+        const monthsElapsed = month - startMonth;
+        const grown = baseMonthly * Math.pow(1 + growthRate / 100, monthsElapsed);
+        return sum + Math.max(grown, 0);
       }, 0);
     };
   }, [settings.burnRateSettings?.revenueStreams]);

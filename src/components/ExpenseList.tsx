@@ -65,34 +65,60 @@ export function ExpenseList({ expenses, onUpdate, onDelete, settings }: ExpenseL
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="Expense name"
             />
-            <div className="flex gap-2">
-              <input
-                type="number"
-                value={editForm.amount || ''}
-                onChange={(e) => setEditForm({ ...editForm, amount: parseFloat(e.target.value) || 0 })}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Amount"
-              />
-              <select
-                value={typeof editForm.startMonth === 'number' ? editForm.startMonth : 0}
-                onChange={(e) => setEditForm({ ...editForm, startMonth: parseInt(e.target.value, 10) })}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {monthOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              {expense.type === 'recurring' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Amount</label>
+                <input
+                  type="number"
+                  value={editForm.amount || ''}
+                  onChange={(e) => setEditForm({ ...editForm, amount: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Amount"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Start Month</label>
                 <select
-                  value={editForm.frequency || 'monthly'}
-                  onChange={(e) => setEditForm({ ...editForm, frequency: e.target.value as 'monthly' | 'yearly' })}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={typeof editForm.startMonth === 'number' ? editForm.startMonth : 0}
+                  onChange={(e) => setEditForm({ ...editForm, startMonth: parseInt(e.target.value, 10) })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="monthly">Monthly</option>
-                  <option value="yearly">Yearly</option>
+                  {monthOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
                 </select>
+              </div>
+              {expense.type === 'recurring' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Frequency</label>
+                  <select
+                    value={editForm.frequency || 'monthly'}
+                    onChange={(e) => setEditForm({ ...editForm, frequency: e.target.value as 'monthly' | 'yearly' })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </div>
+              )}
+              {expense.type === 'recurring' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">MoM Growth %</label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.1"
+                      value={editForm.growthRate ?? ''}
+                      onChange={(e) => setEditForm({ ...editForm, growthRate: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 pr-8"
+                      placeholder="0"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                  </div>
+                </div>
               )}
             </div>
             <div className="flex gap-2 justify-end">
@@ -133,6 +159,7 @@ export function ExpenseList({ expenses, onUpdate, onDelete, settings }: ExpenseL
               {typeof expense.startMonth === 'number' && expense.startMonth > 0 &&
                 ` · Starts ${monthOptions.find((m) => m.value === expense.startMonth)?.label || ''}`}
               {(!expense.startMonth || expense.startMonth === 0) && ' · Starts Now'}
+              {expense.type === 'recurring' && typeof expense.growthRate === 'number' && expense.growthRate > 0 && ` · Growth ${expense.growthRate}% MoM`}
             </p>
           </div>
         </div>
@@ -145,16 +172,16 @@ export function ExpenseList({ expenses, onUpdate, onDelete, settings }: ExpenseL
               </span>
             )}
           </p>
-          <div className="flex gap-1">
+          <div className="flex gap-3 md:gap-1">
             <button
               onClick={() => startEdit(expense)}
-              className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              className="p-3 md:p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-full border border-gray-200"
             >
               <Edit2 className="w-4 h-4" />
             </button>
             <button
               onClick={() => onDelete(expense.id)}
-              className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              className="p-3 md:p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-full border border-gray-200"
             >
               <Trash2 className="w-4 h-4" />
             </button>

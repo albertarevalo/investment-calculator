@@ -561,19 +561,19 @@ export function BurnRateCalculator({
                         <p className="text-sm font-semibold text-gray-900">{stream.name}</p>
                         <p className="text-xs text-gray-500">Starts {monthOptions.find((m) => m.value === (stream.startMonth ?? 0))?.label || 'Now'} · {stream.frequency === 'yearly' ? 'Yearly' : 'Monthly'} · Growth {stream.growthRate ?? 0}%</p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-3 md:gap-2">
                         <span className="text-sm font-semibold text-gray-900">{formatCurrency(stream.amount)}</span>
                         <button
                           type="button"
                           onClick={() => startEditingStream(stream)}
-                          className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                          className="p-3 md:p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-full border border-gray-200"
                         >
                           <Pencil className="w-4 h-4" />
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDeleteStream(stream.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg"
+                          className="p-3 md:p-2 text-red-600 hover:bg-red-50 rounded-full border border-gray-200"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -646,9 +646,10 @@ export function BurnRateCalculator({
             <thead className="sticky top-0 z-10 bg-white shadow-sm">
               <tr className="border-b border-gray-200">
                 <th className="text-left py-2 px-3 font-semibold text-gray-700">Month</th>
-                <th className="text-right py-2 px-3 font-semibold text-gray-700">Starting Cash</th>
-                <th className="text-right py-2 px-3 font-semibold text-gray-700">Revenue</th>
-                <th className="text-right py-2 px-3 font-semibold text-gray-700">Expenses</th>
+                <th className="text-right py-2 px-3 font-semibold text-gray-700 hidden md:table-cell">Starting Cash</th>
+                <th className="text-right py-2 px-3 font-semibold text-gray-700 hidden md:table-cell">Revenue</th>
+                <th className="text-right py-2 px-3 font-semibold text-gray-700 hidden md:table-cell">Expenses</th>
+                <th className="text-right py-2 px-3 font-semibold text-gray-700 md:hidden">Rev / Exp</th>
                 <th className="text-right py-2 px-3 font-semibold text-gray-700">Net Burn</th>
                 <th className="text-right py-2 px-3 font-semibold text-gray-700">Ending Cash</th>
                 <th className="text-right py-2 px-3 font-semibold text-gray-700">Runway</th>
@@ -682,9 +683,15 @@ export function BurnRateCalculator({
                         </span>
                       )}
                     </td>
-                    <td className="text-right py-2 px-3 text-gray-700">{formatCurrency(data.startingCash)}</td>
-                    <td className="text-right py-2 px-3 text-green-600 font-medium">{formatCurrency(data.monthlyRevenue)}</td>
-                    <td className="text-right py-2 px-3 text-red-500 font-medium">{formatCurrency(calculatedMonthlyExpenses)}</td>
+                    <td className="text-right py-2 px-3 text-gray-700 hidden md:table-cell">{formatCurrency(data.startingCash)}</td>
+                    <td className="text-right py-2 px-3 text-green-600 font-medium hidden md:table-cell">{formatCurrency(data.monthlyRevenue)}</td>
+                    <td className="text-right py-2 px-3 text-red-500 font-medium hidden md:table-cell">{formatCurrency(calculatedMonthlyExpenses)}</td>
+                    <td className="text-right py-2 px-3 text-sm text-gray-900 md:hidden">
+                      <div className="flex flex-col items-end leading-tight">
+                        <span className="text-green-600 font-semibold">{formatCurrency(data.monthlyRevenue)}</span>
+                        <span className="text-red-500 font-semibold">{formatCurrency(calculatedMonthlyExpenses)}</span>
+                      </div>
+                    </td>
                     <td className={`text-right py-2 px-3 font-semibold ${netBurnPositive ? 'text-red-600' : 'text-green-600'}`}>
                       {data.month === 0 ? '-' : formatCurrency(data.monthlyBurn)}
                     </td>

@@ -9,7 +9,7 @@ import { CalculatorControls } from './components/CalculatorControls';
 import { Charts } from './components/Charts';
 import { PlanManager } from './components/PlanManager';
 import { CompareModal } from './components/CompareModal';
-import { LayoutDashboard, TrendingUp, Flame, Maximize2, Minimize2 } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, Flame, Maximize2, Minimize2, Info } from 'lucide-react';
 import { MRRCalculator } from './components/MRRCalculator';
 import { BurnRateCalculator } from './components/BurnRateCalculator';
 import { useToast, ToastContainer, toast } from './hooks/useToast.tsx';
@@ -26,12 +26,21 @@ function App() {
   const [activeTab, setActiveTab] = useState<'expenses' | 'charts' | 'mrr' | 'burn'>('expenses');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showVisualizations, setShowVisualizations] = useState(false);
+  const [showIntroModal, setShowIntroModal] = useState(false);
   const { toasts, removeToast } = useToast();
   const { convert, rates } = useExchangeRates();
 
   useEffect(() => {
     saveState(state);
   }, [state]);
+
+  useEffect(() => {
+    const seen = localStorage.getItem('pm_intro_seen');
+    if (!seen) {
+      setShowIntroModal(true);
+      localStorage.setItem('pm_intro_seen', 'true');
+    }
+  }, []);
 
   useEffect(() => {
     const handler = () => {
@@ -268,6 +277,46 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
+      {showIntroModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowIntroModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 sm:p-8 border border-gray-100">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div className="flex items-center gap-2">
+                <Info className="w-5 h-5 text-blue-600" />
+                <h2 className="text-xl font-semibold text-gray-900">What this tool does</h2>
+              </div>
+              <button
+                onClick={() => setShowIntroModal(false)}
+                className="p-2 rounded-full hover:bg-gray-100 text-gray-500"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-3 text-gray-700 text-sm leading-relaxed">
+              <p>Simulate your startup cash journey month by month to see runway, net burn, and when you reach investor-friendly milestones.</p>
+              <ul className="list-disc list-inside space-y-2">
+                <li>Model revenue streams and expenses with future start months and MoM growth.</li>
+                <li>View projections in tables and charts; spot healthy/warning/critical runway.</li>
+                <li>Track payback multiples (1x–100x) and extend projections for 100x scenarios.</li>
+                <li>Export/import plans to compare scenarios or share with stakeholders.</li>
+              </ul>
+            </div>
+            <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="text-xs text-gray-500">We’ll only show this once per device. You can reopen it anytime.</div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => setShowIntroModal(false)}
+                  className="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
+                >
+                  Got it
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between gap-3">
@@ -276,6 +325,13 @@ function App() {
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900">PawsMatch Investment Calculator</h1>
             </div>
             <div className="flex items-center gap-3 ml-auto">
+              <button
+                onClick={() => setShowIntroModal(true)}
+                className="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-100 text-sm font-medium"
+              >
+                <Info className="w-4 h-4" />
+                What is this?
+              </button>
               <button
                 onClick={toggleFullscreen}
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200 text-sm font-medium"
@@ -355,14 +411,19 @@ function App() {
                             amount: typeof e.amount === 'number' ? e.amount : 0,
                             type: e.type === 'recurring' ? 'recurring' : 'one-time',
                             frequency: e.frequency === 'yearly' ? 'yearly' : 'monthly',
+                            startMonth: typeof e.startMonth === 'number' ? e.startMonth : 0,
+                            currency: typeof e.currency === 'string' ? e.currency : undefined,
+                            growthRate: typeof e.growthRate === 'number' ? e.growthRate : 0,
                           })),
                           settings: {
-                            targetRunwayMonths: Number((rawSettings as any).targetRunwayMonths) || 12,
-                            bufferMonths: Number((rawSettings as any).bufferMonths) || 3,
-                            bufferPercentage: Number((rawSettings as any).bufferPercentage) || 20,
+                            targetRunwayMonths: Number((rawSettings as any).targetRunwayMonths) || 8,
+                            bufferMonths: Number((rawSettings as any).bufferMonths) || 0,
+                            bufferPercentage: Number((rawSettings as any).bufferPercentage) || 10,
                             primaryCurrency: String((rawSettings as any).primaryCurrency || 'USD'),
-                            secondaryCurrency: String((rawSettings as any).secondaryCurrency || 'EUR'),
-                            showSecondaryCurrency: Boolean((rawSettings as any).showSecondaryCurrency),
+                            secondaryCurrency: String((rawSettings as any).secondaryCurrency || 'PHP'),
+                            showSecondaryCurrency: (rawSettings as any).showSecondaryCurrency !== undefined
+                              ? Boolean((rawSettings as any).showSecondaryCurrency)
+                              : true,
                             mrrSettings: (rawSettings as any).mrrSettings && typeof (rawSettings as any).mrrSettings === 'object'
                               ? normalizeMrrSettings((rawSettings as any).mrrSettings)
                               : createDefaultMrrSettings(),

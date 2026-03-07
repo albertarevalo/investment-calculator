@@ -9,6 +9,7 @@ export interface Expense {
   frequency?: RecurringFrequency;
   startMonth?: number; // month offset (0 = current month)
   currency?: string; // Currency this expense was created in
+  growthRate?: number; // MoM growth percentage (0-100+)
 }
 
 export interface RevenueStream {
