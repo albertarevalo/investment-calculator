@@ -27,6 +27,7 @@ function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showVisualizations, setShowVisualizations] = useState(false);
   const [showIntroModal, setShowIntroModal] = useState(false);
+  const [showMobileActions, setShowMobileActions] = useState(false);
   const { toasts, removeToast } = useToast();
   const { convert, rates } = useExchangeRates();
 
@@ -241,6 +242,106 @@ function App() {
     }));
   }, []);
 
+  const handleImportPlan = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('File too large. Maximum size is 5MB.');
+        return;
+      }
+      if (!file.name.toLowerCase().endsWith('.json')) {
+        toast.error('Invalid file type. Please select a JSON file.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onerror = () => {
+        toast.error('Failed to read file. Please try again.');
+      };
+      reader.onload = (event) => {
+        try {
+          const content = event.target?.result as string;
+          if (!content || content.trim() === '') {
+            toast.error('File is empty.');
+            return;
+          }
+          let importedPlan: unknown;
+          try {
+            importedPlan = JSON.parse(content);
+          } catch {
+            toast.error('Invalid JSON format. Please check the file.');
+            return;
+          }
+          if (!importedPlan || typeof importedPlan !== 'object') {
+            toast.error('Invalid plan file format.');
+            return;
+          }
+          const plan = importedPlan as Partial<Plan>;
+          const rawSettings = (plan.settings || {}) as Record<string, unknown>;
+          if (!plan.name || !Array.isArray(plan.expenses)) {
+            toast.error('Plan file missing required fields.');
+            return;
+          }
+          const existingPlan = state.plans.find((p) =>
+            p.name.toLowerCase() === plan.name!.toString().toLowerCase()
+          );
+          let finalName = plan.name as string;
+          if (existingPlan) {
+            const timestamp = new Date().toLocaleDateString();
+            finalName = `${plan.name} (Imported ${timestamp})`;
+            toast.warning(`Plan renamed to "${finalName}" to avoid duplicates.`);
+          }
+          const validatedPlan: Plan = {
+            id: generateId(),
+            name: finalName.trim(),
+            createdAt: new Date().toISOString(),
+            expenses: (plan.expenses as unknown[]).map((e: any) => ({
+              id: typeof e.id === 'string' ? e.id : generateId(),
+              name: typeof e.name === 'string' ? e.name : 'Unnamed Expense',
+              amount: typeof e.amount === 'number' ? e.amount : 0,
+              type: e.type === 'recurring' ? 'recurring' : 'one-time',
+              frequency: e.frequency === 'yearly' ? 'yearly' : 'monthly',
+              startMonth: typeof e.startMonth === 'number' ? e.startMonth : 0,
+              currency: typeof e.currency === 'string' ? e.currency : undefined,
+              growthRate: typeof e.growthRate === 'number' ? e.growthRate : 0,
+            })),
+            settings: {
+              targetRunwayMonths: Number((rawSettings as any).targetRunwayMonths) || 8,
+              bufferMonths: Number((rawSettings as any).bufferMonths) || 0,
+              bufferPercentage: Number((rawSettings as any).bufferPercentage) || 10,
+              primaryCurrency: String((rawSettings as any).primaryCurrency || 'USD'),
+              secondaryCurrency: String((rawSettings as any).secondaryCurrency || 'PHP'),
+              showSecondaryCurrency: (rawSettings as any).showSecondaryCurrency !== undefined
+                ? Boolean((rawSettings as any).showSecondaryCurrency)
+                : true,
+              mrrSettings: (rawSettings as any).mrrSettings && typeof (rawSettings as any).mrrSettings === 'object'
+                ? normalizeMrrSettings((rawSettings as any).mrrSettings)
+                : createDefaultMrrSettings(),
+              burnRateSettings: (rawSettings as any).burnRateSettings && typeof (rawSettings as any).burnRateSettings === 'object'
+                ? normalizeBurnRateSettings((rawSettings as any).burnRateSettings)
+                : createDefaultBurnRateSettings(),
+            },
+          };
+          setState((prev) => ({
+            ...prev,
+            plans: [...prev.plans, validatedPlan],
+            activePlanId: validatedPlan.id,
+          }));
+          if (!existingPlan) {
+            toast.success(`Plan "${finalName}" imported successfully!`);
+          }
+        } catch {
+          toast.error('Failed to import plan. Please try again.');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }, [state.plans, toast]);
+
   const exportPlan = useCallback((plan: Plan) => {
     try {
       const dataStr = JSON.stringify(plan, null, 2);
@@ -319,12 +420,69 @@ function App() {
       )}
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-3">
-              <img src="https://nbsxlhidzrtafcgvzkvf.supabase.co/storage/v1/object/public/pawsmatch-bucket/images/logo.png" alt="PawsMatch" className="w-10 h-10 object-contain" />
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">PawsMatch Investment Calculator</h1>
+              <a href="https://pawsbook.pet" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-3">
+                <img src="https://nbsxlhidzrtafcgvzkvf.supabase.co/storage/v1/object/public/pawsmatch-bucket/images/logo.png" alt="PawsMatch" className="w-10 h-10 object-contain" />
+              </a>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Investment Calculator</h1>
             </div>
-            <div className="flex items-center gap-3 ml-auto">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:ml-auto justify-start sm:justify-end">
+              <div className="sm:hidden relative">
+                <button
+                  onClick={() => setShowMobileActions((prev) => !prev)}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium"
+                >
+                  <Info className="w-4 h-4" />
+                  Actions
+                </button>
+                {showMobileActions && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white shadow-lg rounded-lg border border-gray-100 z-20 p-2 space-y-2">
+                    <button
+                      onClick={() => { setShowIntroModal(true); setShowMobileActions(false); }}
+                      className="w-full text-left px-3 py-2 rounded-md hover:bg-blue-50 text-sm text-gray-800"
+                    >
+                      What is this?
+                    </button>
+                    <button
+                      onClick={() => { toggleFullscreen(); setShowMobileActions(false); }}
+                      className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 text-sm text-gray-800"
+                    >
+                      {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                    </button>
+                    <button
+                      onClick={() => { setShowCompare(true); setShowMobileActions(false); }}
+                      className="w-full text-left px-3 py-2 rounded-md hover:bg-blue-50 text-sm text-gray-800"
+                    >
+                      Compare plans
+                    </button>
+                    <button
+                      onClick={() => { duplicatePlan(activePlan.id); setShowMobileActions(false); }}
+                      className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 text-sm text-gray-800"
+                    >
+                      Duplicate plan
+                    </button>
+                    <button
+                      onClick={() => { exportPlan(activePlan); setShowMobileActions(false); }}
+                      className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 text-sm text-gray-800"
+                    >
+                      Export plan
+                    </button>
+                    <button
+                      onClick={() => { handleImportPlan(); setShowMobileActions(false); }}
+                      className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 text-sm text-gray-800"
+                    >
+                      Import plan
+                    </button>
+                    <button
+                      onClick={() => { createPlan('New Plan'); setShowMobileActions(false); }}
+                      className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 text-sm text-gray-800"
+                    >
+                      New plan
+                    </button>
+                  </div>
+                )}
+              </div>
               <button
                 onClick={() => setShowIntroModal(true)}
                 className="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-100 text-sm font-medium"
@@ -334,121 +492,124 @@ function App() {
               </button>
               <button
                 onClick={toggleFullscreen}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200 text-sm font-medium"
+                className="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200 text-sm font-medium"
                 title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
               >
-                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />} {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                <span className="hidden sm:inline">{isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}</span>
               </button>
-              <PlanManager
-                plans={state.plans}
-                activePlanId={state.activePlanId}
-                onSelectPlan={setActivePlan}
-                onCreatePlan={createPlan}
-                onDeletePlan={deletePlan}
-                onDuplicatePlan={duplicatePlan}
-                onCompare={() => setShowCompare(true)}
-                onRenamePlan={renamePlan}
-                onExportPlan={exportPlan}
-                onImportPlan={() => {
-                  const input = document.createElement('input');
-                  input.type = 'file';
-                  input.accept = '.json,application/json';
-                  input.onchange = (e) => {
-                    const file = (e.target as HTMLInputElement).files?.[0];
-                    if (!file) return;
-                    if (file.size > 5 * 1024 * 1024) {
-                      toast.error('File too large. Maximum size is 5MB.');
-                      return;
-                    }
-                    if (!file.name.toLowerCase().endsWith('.json')) {
-                      toast.error('Invalid file type. Please select a JSON file.');
-                      return;
-                    }
-                    const reader = new FileReader();
-                    reader.onerror = () => {
-                      toast.error('Failed to read file. Please try again.');
-                    };
-                    reader.onload = (event) => {
-                      try {
-                        const content = event.target?.result as string;
-                        if (!content || content.trim() === '') {
-                          toast.error('File is empty.');
-                          return;
-                        }
-                        let importedPlan: unknown;
-                        try {
-                          importedPlan = JSON.parse(content);
-                        } catch {
-                          toast.error('Invalid JSON format. Please check the file.');
-                          return;
-                        }
-                        if (!importedPlan || typeof importedPlan !== 'object') {
-                          toast.error('Invalid plan file format.');
-                          return;
-                        }
-                        const plan = importedPlan as Partial<Plan>;
-                        const rawSettings = (plan.settings || {}) as Record<string, unknown>;
-                        if (!plan.name || !Array.isArray(plan.expenses)) {
-                          toast.error('Plan file missing required fields.');
-                          return;
-                        }
-                        const existingPlan = state.plans.find(p => 
-                          p.name.toLowerCase() === plan.name!.toString().toLowerCase()
-                        );
-                        let finalName = plan.name as string;
-                        if (existingPlan) {
-                          const timestamp = new Date().toLocaleDateString();
-                          finalName = `${plan.name} (Imported ${timestamp})`;
-                          toast.warning(`Plan renamed to "${finalName}" to avoid duplicates.`);
-                        }
-                        const validatedPlan: Plan = {
-                          id: generateId(),
-                          name: finalName.trim(),
-                          createdAt: new Date().toISOString(),
-                          expenses: (plan.expenses as unknown[]).map((e: any) => ({
-                            id: typeof e.id === 'string' ? e.id : generateId(),
-                            name: typeof e.name === 'string' ? e.name : 'Unnamed Expense',
-                            amount: typeof e.amount === 'number' ? e.amount : 0,
-                            type: e.type === 'recurring' ? 'recurring' : 'one-time',
-                            frequency: e.frequency === 'yearly' ? 'yearly' : 'monthly',
-                            startMonth: typeof e.startMonth === 'number' ? e.startMonth : 0,
-                            currency: typeof e.currency === 'string' ? e.currency : undefined,
-                            growthRate: typeof e.growthRate === 'number' ? e.growthRate : 0,
-                          })),
-                          settings: {
-                            targetRunwayMonths: Number((rawSettings as any).targetRunwayMonths) || 8,
-                            bufferMonths: Number((rawSettings as any).bufferMonths) || 0,
-                            bufferPercentage: Number((rawSettings as any).bufferPercentage) || 10,
-                            primaryCurrency: String((rawSettings as any).primaryCurrency || 'USD'),
-                            secondaryCurrency: String((rawSettings as any).secondaryCurrency || 'PHP'),
-                            showSecondaryCurrency: (rawSettings as any).showSecondaryCurrency !== undefined
-                              ? Boolean((rawSettings as any).showSecondaryCurrency)
-                              : true,
-                            mrrSettings: (rawSettings as any).mrrSettings && typeof (rawSettings as any).mrrSettings === 'object'
-                              ? normalizeMrrSettings((rawSettings as any).mrrSettings)
-                              : createDefaultMrrSettings(),
-                            burnRateSettings: (rawSettings as any).burnRateSettings && typeof (rawSettings as any).burnRateSettings === 'object'
-                              ? normalizeBurnRateSettings((rawSettings as any).burnRateSettings)
-                              : createDefaultBurnRateSettings(),
-                          },
-                        };
-                        setState((prev) => ({
-                          ...prev,
-                          plans: [...prev.plans, validatedPlan],
-                          activePlanId: validatedPlan.id,
-                        }));
-                        if (!existingPlan) {
-                          toast.success(`Plan "${finalName}" imported successfully!`);
-                        }
-                      } catch {
-                        toast.error('Unexpected error importing plan. Please try again.');
+              <div className="hidden sm:flex">
+                <PlanManager
+                  plans={state.plans}
+                  activePlanId={state.activePlanId}
+                  onSelectPlan={setActivePlan}
+                  onCreatePlan={createPlan}
+                  onDeletePlan={deletePlan}
+                  onDuplicatePlan={duplicatePlan}
+                  onCompare={() => setShowCompare(true)}
+                  onRenamePlan={renamePlan}
+                  onExportPlan={exportPlan}
+                  onImportPlan={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.json,application/json';
+                    input.onchange = (e) => {
+                      const file = (e.target as HTMLInputElement).files?.[0];
+                      if (!file) return;
+                      if (file.size > 5 * 1024 * 1024) {
+                        toast.error('File too large. Maximum size is 5MB.');
+                        return;
                       }
+                      if (!file.name.toLowerCase().endsWith('.json')) {
+                        toast.error('Invalid file type. Please select a JSON file.');
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onerror = () => {
+                        toast.error('Failed to read file. Please try again.');
+                      };
+                      reader.onload = (event) => {
+                        try {
+                          const content = event.target?.result as string;
+                          if (!content || content.trim() === '') {
+                            toast.error('File is empty.');
+                            return;
+                          }
+                          let importedPlan: unknown;
+                          try {
+                            importedPlan = JSON.parse(content);
+                          } catch {
+                            toast.error('Invalid JSON format. Please check the file.');
+                            return;
+                          }
+                          if (!importedPlan || typeof importedPlan !== 'object') {
+                            toast.error('Invalid plan file format.');
+                            return;
+                          }
+                          const plan = importedPlan as Partial<Plan>;
+                          const rawSettings = (plan.settings || {}) as Record<string, unknown>;
+                          if (!plan.name || !Array.isArray(plan.expenses)) {
+                            toast.error('Plan file missing required fields.');
+                            return;
+                          }
+                          const existingPlan = state.plans.find((p) =>
+                            p.name.toLowerCase() === plan.name!.toString().toLowerCase()
+                          );
+                          let finalName = plan.name as string;
+                          if (existingPlan) {
+                            const timestamp = new Date().toLocaleDateString();
+                            finalName = `${plan.name} (Imported ${timestamp})`;
+                            toast.warning(`Plan renamed to "${finalName}" to avoid duplicates.`);
+                          }
+                          const validatedPlan: Plan = {
+                            id: generateId(),
+                            name: finalName.trim(),
+                            createdAt: new Date().toISOString(),
+                            expenses: (plan.expenses as unknown[]).map((e: any) => ({
+                              id: typeof e.id === 'string' ? e.id : generateId(),
+                              name: typeof e.name === 'string' ? e.name : 'Unnamed Expense',
+                              amount: typeof e.amount === 'number' ? e.amount : 0,
+                              type: e.type === 'recurring' ? 'recurring' : 'one-time',
+                              frequency: e.frequency === 'yearly' ? 'yearly' : 'monthly',
+                              startMonth: typeof e.startMonth === 'number' ? e.startMonth : 0,
+                              currency: typeof e.currency === 'string' ? e.currency : undefined,
+                              growthRate: typeof e.growthRate === 'number' ? e.growthRate : 0,
+                            })),
+                            settings: {
+                              targetRunwayMonths: Number((rawSettings as any).targetRunwayMonths) || 8,
+                              bufferMonths: Number((rawSettings as any).bufferMonths) || 0,
+                              bufferPercentage: Number((rawSettings as any).bufferPercentage) || 10,
+                              primaryCurrency: String((rawSettings as any).primaryCurrency || 'USD'),
+                              secondaryCurrency: String((rawSettings as any).secondaryCurrency || 'PHP'),
+                              showSecondaryCurrency: (rawSettings as any).showSecondaryCurrency !== undefined
+                                ? Boolean((rawSettings as any).showSecondaryCurrency)
+                                : true,
+                              mrrSettings: (rawSettings as any).mrrSettings && typeof (rawSettings as any).mrrSettings === 'object'
+                                ? normalizeMrrSettings((rawSettings as any).mrrSettings)
+                                : createDefaultMrrSettings(),
+                              burnRateSettings: (rawSettings as any).burnRateSettings && typeof (rawSettings as any).burnRateSettings === 'object'
+                                ? normalizeBurnRateSettings((rawSettings as any).burnRateSettings)
+                                : createDefaultBurnRateSettings(),
+                            },
+                          };
+                          setState((prev) => ({
+                            ...prev,
+                            plans: [...prev.plans, validatedPlan],
+                            activePlanId: validatedPlan.id,
+                          }));
+                          if (!existingPlan) {
+                            toast.success(`Plan "${finalName}" imported successfully!`);
+                          }
+                        } catch {
+                          toast.error('Failed to import plan. Please try again.');
+                        }
+                      };
+                      reader.readAsText(file);
                     };
-                    reader.readAsText(file);
-                  };
-                  input.click();
-                }}
-              />
+                    input.click();
+                  }}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -586,6 +747,12 @@ function App() {
           onClose={() => setShowCompare(false)}
         />
       )}
+      <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6 text-center text-sm text-gray-500">
+        Powered by{' '}
+        <a href="https://pawsbook.pet" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-700 font-semibold">
+          PawsMatch
+        </a>
+      </footer>
     </div>
   );
 }

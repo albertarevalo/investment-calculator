@@ -144,23 +144,43 @@ export function CalculatorControls({
 
         <div className="border-t border-gray-200 pt-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Target Runway</h3>
-          <div className="flex items-center gap-3">
-            <input
-              type="range"
-              min="1"
-              max="60"
-              value={settings.targetRunwayMonths}
-              onChange={(e) =>
-                onUpdateSettings({
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 border border-gray-300 rounded-lg px-2 py-1 bg-gray-50">
+              <button
+                type="button"
+                onClick={() => onUpdateSettings({
                   ...settings,
-                  targetRunwayMonths: parseInt(e.target.value),
-                })
-              }
-              className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-            />
-            <span className="text-sm font-medium text-gray-900 min-w-[4rem]">
-              {settings.targetRunwayMonths} mo
-            </span>
+                  targetRunwayMonths: Math.max(1, settings.targetRunwayMonths - 1),
+                })}
+                className="px-2 py-1 text-gray-700 hover:text-blue-600"
+              >
+                –
+              </button>
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={settings.targetRunwayMonths}
+                onChange={(e) =>
+                  onUpdateSettings({
+                    ...settings,
+                    targetRunwayMonths: Math.min(60, Math.max(1, parseInt(e.target.value) || 1)),
+                  })
+                }
+                className="w-16 text-center bg-transparent focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => onUpdateSettings({
+                  ...settings,
+                  targetRunwayMonths: Math.min(60, settings.targetRunwayMonths + 1),
+                })}
+                className="px-2 py-1 text-gray-700 hover:text-blue-600"
+              >
+                +
+              </button>
+            </div>
+            <span className="text-sm font-medium text-gray-900">{settings.targetRunwayMonths} mo</span>
           </div>
         </div>
 
@@ -176,19 +196,41 @@ export function CalculatorControls({
                 <Percent className="w-3 h-3" />
                 Extra Percentage ({settings.bufferPercentage}%)
               </label>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={settings.bufferPercentage}
-                onChange={(e) =>
-                  onUpdateSettings({
-                    ...settings,
-                    bufferPercentage: parseInt(e.target.value),
-                  })
-                }
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-              />
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 border border-gray-300 rounded-lg px-2 py-1 bg-gray-50">
+                  <button
+                    type="button"
+                    onClick={() => onUpdateSettings({
+                      ...settings,
+                      bufferPercentage: Math.max(0, settings.bufferPercentage - 1),
+                    })}
+                    className="px-2 py-1 text-gray-700 hover:text-blue-600"
+                  >
+                    –
+                  </button>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={settings.bufferPercentage}
+                    onChange={(e) => onUpdateSettings({
+                      ...settings,
+                      bufferPercentage: Math.min(100, Math.max(0, parseInt(e.target.value) || 0)),
+                    })}
+                    className="w-16 text-center bg-transparent focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onUpdateSettings({
+                      ...settings,
+                      bufferPercentage: Math.min(100, settings.bufferPercentage + 1),
+                    })}
+                    className="px-2 py-1 text-gray-700 hover:text-blue-600"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div>
@@ -196,19 +238,41 @@ export function CalculatorControls({
                 <Clock className="w-3 h-3" />
                 Extra Months ({settings.bufferMonths})
               </label>
-              <input
-                type="range"
-                min="0"
-                max="24"
-                value={settings.bufferMonths}
-                onChange={(e) =>
-                  onUpdateSettings({
-                    ...settings,
-                    bufferMonths: parseInt(e.target.value),
-                  })
-                }
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-              />
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 border border-gray-300 rounded-lg px-2 py-1 bg-gray-50">
+                  <button
+                    type="button"
+                    onClick={() => onUpdateSettings({
+                      ...settings,
+                      bufferMonths: Math.max(0, settings.bufferMonths - 1),
+                    })}
+                    className="px-2 py-1 text-gray-700 hover:text-blue-600"
+                  >
+                    –
+                  </button>
+                  <input
+                    type="number"
+                    min={0}
+                    max={24}
+                    value={settings.bufferMonths}
+                    onChange={(e) => onUpdateSettings({
+                      ...settings,
+                      bufferMonths: Math.min(24, Math.max(0, parseInt(e.target.value) || 0)),
+                    })}
+                    className="w-16 text-center bg-transparent focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onUpdateSettings({
+                      ...settings,
+                      bufferMonths: Math.min(24, settings.bufferMonths + 1),
+                    })}
+                    className="px-2 py-1 text-gray-700 hover:text-blue-600"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

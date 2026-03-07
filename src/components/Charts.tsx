@@ -138,42 +138,53 @@ export function Charts({ expenses, results, settings }: ChartsProps) {
 
   return (
     <div className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
         <div className="flex items-center gap-2">
           <PieChartIcon className="w-5 h-5 text-blue-600" />
           <h2 className="text-lg font-semibold text-gray-900">Visualizations</h2>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setActiveChart('breakdown')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              activeChart === 'breakdown'
-                ? 'bg-blue-100 text-blue-700'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+        <div className="flex items-center gap-2">
+          <select
+            value={activeChart}
+            onChange={(e) => setActiveChart(e.target.value as typeof activeChart)}
+            className="sm:hidden px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 bg-white shadow-sm"
           >
-            Breakdown
-          </button>
-          <button
-            onClick={() => setActiveChart('timeline')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              activeChart === 'timeline'
-                ? 'bg-blue-100 text-blue-700'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            Timeline
-          </button>
-          <button
-            onClick={() => setActiveChart('cashflow')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              activeChart === 'cashflow'
-                ? 'bg-blue-100 text-blue-700'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
-          >
-            Cashflow
-          </button>
+            <option value="breakdown">Breakdown</option>
+            <option value="timeline">Timeline</option>
+            <option value="cashflow">Cashflow</option>
+          </select>
+          <div className="hidden sm:flex gap-2">
+            <button
+              onClick={() => setActiveChart('breakdown')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeChart === 'breakdown'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Breakdown
+            </button>
+            <button
+              onClick={() => setActiveChart('timeline')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeChart === 'timeline'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Timeline
+            </button>
+            <button
+              onClick={() => setActiveChart('cashflow')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeChart === 'cashflow'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              Cashflow
+            </button>
+          </div>
         </div>
       </div>
 
