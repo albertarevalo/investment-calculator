@@ -372,7 +372,7 @@ export function BurnRateCalculator({
                   onChange={(e) => setShowFullRoi(e.target.checked)}
                   className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                 />
-                <span className="whitespace-nowrap">Show when to get 100xVC</span>
+                <span className="whitespace-nowrap">Show when to get 100X</span>
               </label>
             </div>
             <div className="relative">

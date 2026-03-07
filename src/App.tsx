@@ -9,7 +9,7 @@ import { CalculatorControls } from './components/CalculatorControls';
 import { Charts } from './components/Charts';
 import { PlanManager } from './components/PlanManager';
 import { CompareModal } from './components/CompareModal';
-import { LayoutDashboard, TrendingUp, Flame, Maximize2, Minimize2, Info } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, Flame, Maximize2, Minimize2, Info, Edit2, Copy } from 'lucide-react';
 import { MRRCalculator } from './components/MRRCalculator';
 import { BurnRateCalculator } from './components/BurnRateCalculator';
 import { useToast, ToastContainer, toast } from './hooks/useToast.tsx';
@@ -27,7 +27,7 @@ function App() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showVisualizations, setShowVisualizations] = useState(false);
   const [showIntroModal, setShowIntroModal] = useState(false);
-  const [showMobileActions, setShowMobileActions] = useState(false);
+  const [showMobilePlanSheet, setShowMobilePlanSheet] = useState(false);
   const { toasts, removeToast } = useToast();
   const { convert, rates } = useExchangeRates();
 
@@ -425,63 +425,36 @@ function App() {
               <a href="https://pawsbook.pet" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-3">
                 <img src="https://nbsxlhidzrtafcgvzkvf.supabase.co/storage/v1/object/public/pawsmatch-bucket/images/logo.png" alt="PawsMatch" className="w-10 h-10 object-contain" />
               </a>
-              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Investment Calculator</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Startup Runway Simulator</h1>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:ml-auto justify-start sm:justify-end">
-              <div className="sm:hidden relative">
+              <div className="flex items-center gap-2 sm:hidden">
                 <button
-                  onClick={() => setShowMobileActions((prev) => !prev)}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm font-medium"
+                  onClick={toggleFullscreen}
+                  className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200"
+                  title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                >
+                  {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                </button>
+                <button
+                  onClick={() => setShowIntroModal(true)}
+                  className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-100"
+                  title="What is this?"
                 >
                   <Info className="w-4 h-4" />
-                  Actions
                 </button>
-                {showMobileActions && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white shadow-lg rounded-lg border border-gray-100 z-20 p-2 space-y-2">
-                    <button
-                      onClick={() => { setShowIntroModal(true); setShowMobileActions(false); }}
-                      className="w-full text-left px-3 py-2 rounded-md hover:bg-blue-50 text-sm text-gray-800"
-                    >
-                      What is this?
-                    </button>
-                    <button
-                      onClick={() => { toggleFullscreen(); setShowMobileActions(false); }}
-                      className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 text-sm text-gray-800"
-                    >
-                      {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-                    </button>
-                    <button
-                      onClick={() => { setShowCompare(true); setShowMobileActions(false); }}
-                      className="w-full text-left px-3 py-2 rounded-md hover:bg-blue-50 text-sm text-gray-800"
-                    >
-                      Compare plans
-                    </button>
-                    <button
-                      onClick={() => { duplicatePlan(activePlan.id); setShowMobileActions(false); }}
-                      className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 text-sm text-gray-800"
-                    >
-                      Duplicate plan
-                    </button>
-                    <button
-                      onClick={() => { exportPlan(activePlan); setShowMobileActions(false); }}
-                      className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 text-sm text-gray-800"
-                    >
-                      Export plan
-                    </button>
-                    <button
-                      onClick={() => { handleImportPlan(); setShowMobileActions(false); }}
-                      className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 text-sm text-gray-800"
-                    >
-                      Import plan
-                    </button>
-                    <button
-                      onClick={() => { createPlan('New Plan'); setShowMobileActions(false); }}
-                      className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 text-sm text-gray-800"
-                    >
-                      New plan
-                    </button>
-                  </div>
-                )}
+                <button
+                  onClick={() => setShowCompare(true)}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-100 text-sm font-medium"
+                >
+                  Compare
+                </button>
+                <button
+                  onClick={() => setShowMobilePlanSheet(true)}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200 text-sm font-medium"
+                >
+                  Plans
+                </button>
               </div>
               <button
                 onClick={() => setShowIntroModal(true)}
@@ -614,6 +587,111 @@ function App() {
           </div>
         </div>
       </header>
+
+      {showMobilePlanSheet && (
+        <div className="fixed inset-0 z-50 flex items-end sm:hidden">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowMobilePlanSheet(false)} />
+          <div className="relative w-full bg-white rounded-t-2xl shadow-xl border-t border-gray-200 p-4 space-y-2">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-sm font-semibold text-gray-800">Plan actions</h3>
+              <button onClick={() => setShowMobilePlanSheet(false)} className="p-2 rounded-full hover:bg-gray-100 text-gray-500">✕</button>
+            </div>
+            <div className="max-h-60 overflow-auto space-y-1">
+              <p className="text-xs font-semibold text-gray-500 px-1">Your plans</p>
+              {state.plans.map((plan) => (
+                <div
+                  key={plan.id}
+                  className={`flex items-center justify-between px-3 py-2 rounded-lg border ${
+                    plan.id === activePlan.id ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-gray-200 bg-gray-50 text-gray-800'
+                  }`}
+                >
+                  <button
+                    className="flex-1 text-left text-sm font-medium truncate"
+                    onClick={() => {
+                      setActivePlan(plan.id);
+                      setShowMobilePlanSheet(false);
+                    }}
+                  >
+                    {plan.name}
+                  </button>
+                  <div className="flex items-center gap-2 pl-2 border-l border-gray-200">
+                    <button
+                      onClick={() => {
+                        const newName = prompt('Rename plan', plan.name);
+                        if (newName && newName.trim()) renamePlan(plan.id, newName.trim());
+                      }}
+                      className="p-1 text-gray-600 hover:text-blue-700"
+                      title="Rename plan"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => duplicatePlan(plan.id)}
+                      className="p-1 text-gray-600 hover:text-blue-700"
+                      title="Duplicate plan"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                    {state.plans.length > 1 && (
+                      <button
+                        onClick={() => {
+                          deletePlan(plan.id);
+                          if (plan.id === activePlan.id) {
+                            setShowMobilePlanSheet(false);
+                          }
+                        }}
+                        className="p-1 text-red-600 hover:text-red-700"
+                        title="Delete plan"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="border-t border-gray-200 pt-2 mt-2 space-y-2">
+              <button
+                onClick={() => { duplicatePlan(activePlan.id); setShowMobilePlanSheet(false); }}
+                className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 text-sm text-gray-800"
+              >
+                Duplicate plan
+              </button>
+              <div className="border-t border-gray-100 pt-2 space-y-2">
+                <button
+                  onClick={() => { exportPlan(activePlan); setShowMobilePlanSheet(false); }}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 text-sm text-gray-800"
+                >
+                  Export plan
+                </button>
+                <button
+                  onClick={() => { handleImportPlan(); setShowMobilePlanSheet(false); }}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 text-sm text-gray-800"
+                >
+                  Import plan
+                </button>
+              </div>
+              <div className="border-t border-gray-100 pt-2 space-y-2">
+                <button
+                  onClick={() => {
+                    alert('To install: tap Share, then "Add to Home Screen".');
+                    setShowMobilePlanSheet(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 text-sm text-gray-800"
+                >
+                  Add to Home Screen
+                </button>
+              </div>
+              <button
+                onClick={() => { createPlan('New Plan'); setShowMobilePlanSheet(false); }}
+                className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 text-sm text-gray-800"
+              >
+                New plan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
