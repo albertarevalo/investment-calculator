@@ -192,70 +192,85 @@ export function Charts({ expenses, results, settings, onFocusAvailableFunds }: C
 
       {activeChart === 'breakdown' && (
         <div className="space-y-6">
-          <div>
-            <h3 className="text-sm font-medium text-gray-600 mb-3 flex items-center gap-2">
-              <CreditCard className="w-4 h-4" />
-              Expense Breakdown (donut, monthlyized)
-            </h3>
-            {expenseDonutData.length > 0 ? (
-              <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                <div className="relative h-72 w-full lg:w-1/2">
-                  <ResponsiveContainer>
-                    <PieChart>
-                      <Pie
-                        data={expenseDonutData}
-                        dataKey="value"
-                        nameKey="name"
-                        innerRadius={70}
-                        outerRadius={110}
-                        paddingAngle={2}
-                      >
-                        {expenseDonutData.map((_, index) => (
-                          <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value: number, name: string) => [formatCurrency(value, primarySymbol), name]} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <p className="text-xs text-gray-500">Total</p>
-                    <p className="text-lg font-semibold text-gray-900">{formatCurrency(expenseTotal, primarySymbol)}</p>
-                  </div>
-                </div>
-                <div className="flex-1 space-y-2 max-h-72 overflow-auto pr-2">
-                  {expenseDonutData.map((item, index) => {
-                    const pct = expenseTotal > 0 ? (item.value / expenseTotal) * 100 : 0;
-                    return (
-                      <div key={item.name + index} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
-                          <span className="truncate" title={item.name}>{item.name}</span>
-                        </div>
-                        <div className="text-right text-gray-700">
-                          <div className="font-medium">{formatCurrency(item.value, primarySymbol)}</div>
-                          <div className="text-xs text-gray-500">{pct.toFixed(1)}%</div>
-                        </div>
+          {!hasFunds ? (
+            <div className="p-4 border border-dashed border-blue-200 rounded-lg bg-blue-50 text-sm text-blue-900 flex flex-col gap-3">
+              <div className="font-semibold">Add Available Funds to see your expense breakdown.</div>
+              <button
+                type="button"
+                onClick={onFocusAvailableFunds}
+                className="inline-flex items-center justify-center px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold shadow hover:bg-blue-700"
+              >
+                Add now
+              </button>
+            </div>
+          ) : (
+            <>
+              <div>
+                <h3 className="text-sm font-medium text-gray-600 mb-3 flex items-center gap-2">
+                  <CreditCard className="w-4 h-4" />
+                  Expense Breakdown (donut, monthlyized)
+                </h3>
+                {expenseDonutData.length > 0 ? (
+                  <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                    <div className="relative h-72 w-full lg:w-1/2">
+                      <ResponsiveContainer>
+                        <PieChart>
+                          <Pie
+                            data={expenseDonutData}
+                            dataKey="value"
+                            nameKey="name"
+                            innerRadius={70}
+                            outerRadius={110}
+                            paddingAngle={2}
+                          >
+                            {expenseDonutData.map((_, index) => (
+                              <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value: number, name: string) => [formatCurrency(value, primarySymbol), name]} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <p className="text-xs text-gray-500">Total</p>
+                        <p className="text-lg font-semibold text-gray-900">{formatCurrency(expenseTotal, primarySymbol)}</p>
                       </div>
-                    );
-                  })}
+                    </div>
+                    <div className="flex-1 space-y-2 max-h-72 overflow-auto pr-2">
+                      {expenseDonutData.map((item, index) => {
+                        const pct = expenseTotal > 0 ? (item.value / expenseTotal) * 100 : 0;
+                        return (
+                          <div key={item.name + index} className="flex items-center justify-between text-sm">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
+                              <span className="truncate" title={item.name}>{item.name}</span>
+                            </div>
+                            <div className="text-right text-gray-700">
+                              <div className="font-medium">{formatCurrency(item.value, primarySymbol)}</div>
+                              <div className="text-xs text-gray-500">{pct.toFixed(1)}%</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No expenses yet. Add expenses to see the breakdown.</p>
+                )}
+              </div>
+
+              <div>
+                <h3 className="text-sm font-medium text-gray-600 mb-2">Monthly Burn Components</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {summaryData.map((item) => (
+                    <div key={item.name} className="p-3 rounded-lg border border-gray-200 bg-gray-50">
+                      <p className="text-xs uppercase tracking-wide text-gray-500">{item.name}</p>
+                      <p className="text-lg font-semibold text-gray-900">{formatCurrency(item.value, primarySymbol)}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ) : (
-              <p className="text-sm text-gray-500">No expenses yet. Add expenses to see the breakdown.</p>
-            )}
-          </div>
-
-          <div>
-            <h3 className="text-sm font-medium text-gray-600 mb-2">Monthly Burn Components</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {summaryData.map((item) => (
-                <div key={item.name} className="p-3 rounded-lg border border-gray-200 bg-gray-50">
-                  <p className="text-xs uppercase tracking-wide text-gray-500">{item.name}</p>
-                  <p className="text-lg font-semibold text-gray-900">{formatCurrency(item.value, primarySymbol)}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+            </>
+          )}
         </div>
       )}
 
