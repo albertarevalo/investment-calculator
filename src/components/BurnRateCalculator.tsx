@@ -18,6 +18,7 @@ interface MonthData {
   date: string;
   startingCash: number;
   monthlyRevenue: number;
+  monthlyExpense: number;
   monthlyBurn: number;
   endingCash: number;
   runwayMonths: number;
@@ -78,6 +79,15 @@ export function BurnRateCalculator({
     }, 0);
   }, [expenses]);
 
+  // Normalized recurring expense: ignores start dates to surface full obligation
+  const normalizedMonthlyExpense = useMemo(() => {
+    return expenses.reduce((sum, expense) => {
+      if (expense.type !== 'recurring') return sum;
+      const monthlyAmount = expense.frequency === 'yearly' ? expense.amount / 12 : expense.amount;
+      return sum + Math.max(monthlyAmount, 0);
+    }, 0);
+  }, [expenses]);
+
   const calculatedMonthlyExpenses = useMemo(() => monthlyExpenseAt(0), [monthlyExpenseAt]);
 
   const monthlyRevenueAt = useCallback((monthIndex: number) => {
@@ -94,7 +104,7 @@ export function BurnRateCalculator({
 
   const totalMonthlyRevenue = useMemo(() => monthlyRevenueAt(0), [monthlyRevenueAt]);
 
-  const netBurn = calculatedMonthlyExpenses - totalMonthlyRevenue;
+  const netBurn = normalizedMonthlyExpense - totalMonthlyRevenue;
   const isProfitable = netBurn <= 0;
 
   useEffect(() => {
@@ -206,8 +216,8 @@ export function BurnRateCalculator({
       date.setMonth(date.getMonth() + month);
 
       const monthlyRevenue = monthlyRevenueAt(month);
-      const expenseThisMonth = monthlyExpenseAt(month) + oneTimeExpenseAt(month);
-      const thisMonthNetBurn = expenseThisMonth - monthlyRevenue;
+      const monthlyExpense = monthlyExpenseAt(month) + oneTimeExpenseAt(month);
+      const thisMonthNetBurn = monthlyExpense - monthlyRevenue;
       const runwayMonths = thisMonthNetBurn <= 0 ? Infinity : currentCash / thisMonthNetBurn;
       let status: 'healthy' | 'warning' | 'critical';
       
@@ -221,7 +231,7 @@ export function BurnRateCalculator({
 
       let milestoneMultiple: number | undefined;
       if (initialCash > 0 && nextRevenueMultiple <= maxMultiple) {
-        const netThisMonth = monthlyRevenue - expenseThisMonth;
+        const netThisMonth = monthlyRevenue - monthlyExpense;
         const before = cumulativeNet;
         const after = cumulativeNet + netThisMonth;
         if (before < initialCash * nextRevenueMultiple && after >= initialCash * nextRevenueMultiple) {
@@ -240,6 +250,7 @@ export function BurnRateCalculator({
         date: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
         startingCash: currentCash,
         monthlyRevenue,
+        monthlyExpense,
         monthlyBurn: month === 0 ? 0 : thisMonthNetBurn,
         endingCash: currentCash - (month === 0 ? 0 : thisMonthNetBurn),
         runwayMonths,
@@ -597,8 +608,8 @@ export function BurnRateCalculator({
             <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(netBurn)}</p>
             <p className="text-xs text-blue-900/70 mt-1">
               {isProfitable
-                ? 'Profitable! Revenue exceeds expenses'
-                : `${formatCurrency(totalMonthlyRevenue)} revenue vs ${formatCurrency(calculatedMonthlyExpenses)} expenses`}
+                ? 'Profitable! Revenue exceeds normalized expenses'
+                : `${formatCurrency(totalMonthlyRevenue)} revenue vs ${formatCurrency(normalizedMonthlyExpense)} expenses (normalized, incl. future starts)`}
             </p>
           </div>
           <div className="bg-purple-50 border border-purple-100 p-4 rounded-xl shadow-sm">
@@ -685,11 +696,11 @@ export function BurnRateCalculator({
                     </td>
                     <td className="text-right py-2 px-3 text-gray-700 hidden md:table-cell">{formatCurrency(data.startingCash)}</td>
                     <td className="text-right py-2 px-3 text-green-600 font-medium hidden md:table-cell">{formatCurrency(data.monthlyRevenue)}</td>
-                    <td className="text-right py-2 px-3 text-red-500 font-medium hidden md:table-cell">{formatCurrency(calculatedMonthlyExpenses)}</td>
+                    <td className="text-right py-2 px-3 text-red-500 font-medium hidden md:table-cell">{formatCurrency(data.monthlyExpense)}</td>
                     <td className="text-right py-2 px-3 text-sm text-gray-900 md:hidden">
                       <div className="flex flex-col items-end leading-tight">
                         <span className="text-green-600 font-semibold">{formatCurrency(data.monthlyRevenue)}</span>
-                        <span className="text-red-500 font-semibold">{formatCurrency(calculatedMonthlyExpenses)}</span>
+                        <span className="text-red-500 font-semibold">{formatCurrency(data.monthlyExpense)}</span>
                       </div>
                     </td>
                     <td className={`text-right py-2 px-3 font-semibold ${netBurnPositive ? 'text-red-600' : 'text-green-600'}`}>
