@@ -42,7 +42,7 @@ export function SummaryCards({ results, settings }: SummaryCardsProps) {
       title: 'Monthly Burn',
       value: formatCurrency(results.monthlyBurn, primarySymbol),
       secondaryValue: settings?.showSecondaryCurrency ? formatCurrency(convert(results.monthlyBurn, settings?.primaryCurrency || 'USD', settings?.secondaryCurrency || 'EUR'), secondarySymbol) : null,
-      subtitle: 'Recurring / month',
+      subtitle: `Normalized recurring / month · Live now: ${formatCurrency(results.liveMonthlyBurn, primarySymbol)}`,
       icon: TrendingDown,
       color: 'orange',
     },

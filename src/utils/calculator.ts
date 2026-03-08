@@ -61,7 +61,16 @@ export const calculateResults = (
   };
 
   const monthlyNetBurn = monthlyBurnAt(0) - monthlyRevenueAt(0);
-  const monthlyBurn = monthlyNetBurn;
+
+  // Normalized recurring burn (ignores start month/growth to reflect total recurring obligations)
+  const monthlyBurn = expenses.reduce((total, expense) => {
+    if (expense.type !== 'recurring') return total;
+    const baseMonthly = expense.frequency === 'yearly' ? expense.amount / 12 : expense.amount;
+    return total + Math.max(baseMonthly, 0);
+  }, 0);
+
+  // Live net burn this month (respects start months and growth)
+  const liveMonthlyBurn = Math.max(monthlyNetBurn, 0);
 
   let totalNeeded = 0;
   for (let month = 0; month < settings.targetRunwayMonths; month++) {
@@ -98,6 +107,7 @@ export const calculateResults = (
     monthlyRecurring,
     yearlyRecurring,
     monthlyBurn,
+    liveMonthlyBurn,
     totalNeeded,
     totalWithBuffer,
     runwayMonths: Math.max(0, runwayMonths),

@@ -79,6 +79,7 @@ export interface CalculationResult {
   monthlyRecurring: number;
   yearlyRecurring: number;
   monthlyBurn: number;
+  liveMonthlyBurn: number;
   totalNeeded: number;
   totalWithBuffer: number;
   runwayMonths: number;
