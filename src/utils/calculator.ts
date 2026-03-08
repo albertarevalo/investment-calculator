@@ -70,9 +70,11 @@ export const calculateResults = (
     totalNeeded += monthNeed;
   }
 
-  const bufferAmount = totalNeeded * (settings.bufferPercentage / 100);
+  // Add extra buffer months first, then apply percentage buffer on the combined subtotal
   const bufferMonthsAmount = Math.max(monthlyNetBurn, 0) * settings.bufferMonths;
-  const totalWithBuffer = totalNeeded + bufferAmount + bufferMonthsAmount;
+  const subtotalBeforePercentageBuffer = totalNeeded + bufferMonthsAmount;
+  const bufferAmount = subtotalBeforePercentageBuffer * (settings.bufferPercentage / 100);
+  const totalWithBuffer = subtotalBeforePercentageBuffer + bufferAmount;
 
   let runwayMonths: number = 0;
   let remaining = availableFunds;

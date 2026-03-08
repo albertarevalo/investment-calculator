@@ -26,7 +26,7 @@ export function SummaryCards({ results, settings }: SummaryCardsProps) {
       title: 'Total Needed',
       value: formatCurrency(results.totalNeeded, primarySymbol),
       secondaryValue: settings?.showSecondaryCurrency ? formatCurrency(convert(results.totalNeeded, settings?.primaryCurrency || 'USD', settings?.secondaryCurrency || 'EUR'), secondarySymbol) : null,
-      subtitle: 'Without buffer',
+      subtitle: `Without buffer · Target runway: ${settings?.targetRunwayMonths || 0} mo${settings?.targetRunwayMonths === 1 ? '' : 's'}`,
       icon: Wallet,
       color: 'blue',
     },
