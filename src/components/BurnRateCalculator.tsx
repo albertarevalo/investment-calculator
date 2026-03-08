@@ -362,11 +362,11 @@ export function BurnRateCalculator({
             </label>
             <div className="p-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-700">
               {symbol}
-              {calculatedMonthlyExpenses.toLocaleString('en-US', {
+              {normalizedMonthlyExpense.toLocaleString('en-US', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
-              <p className="text-xs text-gray-500 mt-1">Auto-synced from Runway expenses</p>
+              <p className="text-xs text-gray-500 mt-1">Normalized (includes future-start recurring)</p>
             </div>
           </div>
 
